@@ -20,25 +20,82 @@ Rust canister implementation of the Cornerstone protocol for the Internet Comput
 
 1. **Install toolchain**
    - Rust 1.79+ (`rustup default stable`).
-   - (Optional) DFX 0.15+ if deploying to a replica.
+   - DFX 0.15+ for deploying to a local replica.
 2. **Fetch dependencies & run tests**
    ```bash
    cargo test
    ```
    Tests in `packages/core` mirror the Hardhat suite (interest accrual, refunds, developer caps, pause). They provide confidence before compiling to Wasm.
-3. **Build Wasm for deployment**
+3. **Start local replica**
+   ```bash
+   dfx start --clean --background
+   ```
+4. **Deploy Registry Canister**
+
+   Deploy the registry with an owner principal:
+   ```bash
+   dfx deploy registry --argument '(opt record { owner = opt principal "YOUR_PRINCIPAL_ID" })'
+   ```
+
+   Or deploy without an owner:
+   ```bash
+   dfx deploy registry --argument '(null)'
+   ```
+
+   To get your principal ID:
+   ```bash
+   dfx identity get-principal
+   ```
+
+5. **Deploy Project Canister**
+
+   First, create a `project_args.did` file with initialization parameters:
+   ```candid
+   (record {
+     params = record {
+       stablecoin = "ckUSDC";
+       min_raise = 100_000_000_000;
+       max_raise = 1_000_000_000_000;
+       fundraise_deadline = 1_735_689_600_000_000_000;
+       phase_aprs_bps = vec { 500; 500; 500; 500; 500; 500 };
+       phase_durations = vec { 15_552_000_000_000_000; 15_552_000_000_000_000; 15_552_000_000_000_000; 15_552_000_000_000_000; 15_552_000_000_000_000; 15_552_000_000_000_000 };
+       phase_withdraw_caps_bps = vec { 2000; 2000; 2000; 2000; 2000; 2000 };
+       token_name = "Example Project Token";
+       token_symbol = "EPT";
+     };
+   })
+   ```
+
+   Then deploy:
+   ```bash
+   dfx deploy project --argument-file project_args.did
+   ```
+
+   **Parameter Details:**
+   - `stablecoin`: Token identifier (e.g., "ckUSDC")
+   - `min_raise` / `max_raise`: Minimum/maximum fundraise amounts in base units
+   - `fundraise_deadline`: Deadline in nanoseconds since Unix epoch
+   - `phase_aprs_bps`: APR for each of 6 phases in basis points (500 = 5%)
+   - `phase_durations`: Duration of each phase in nanoseconds
+   - `phase_withdraw_caps_bps`: Withdrawal cap per phase in basis points (2000 = 20%)
+   - `token_name` / `token_symbol`: Project token metadata
+
+6. **Interact with Canisters**
+
+   Access the Candid UI for testing:
+   ```bash
+   # Get the Candid UI URL
+   dfx canister call registry get_project '(0)'
+   ```
+
+   Or use the URLs displayed after deployment to interact via the browser interface.
+
+7. **Build Wasm manually (optional)**
    ```bash
    cargo build --release --target wasm32-unknown-unknown -p project-canister
    cargo build --release --target wasm32-unknown-unknown -p registry-canister
    ```
    Generated Wasm binaries live under `target/wasm32-unknown-unknown/release/` and can be installed with `dfx canister install` or via the management canister.
-4. **Generate Candid (optional)**
-   After building with `dfx build`, run:
-   ```bash
-   dfx generate project
-   dfx generate registry
-   ```
-   The generated `.did` files will appear alongside the canisters under `canisters/<name>/`.
 
 ## Next Steps & Hackathon Notes
 

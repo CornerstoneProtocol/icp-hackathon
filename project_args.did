@@ -1,0 +1,13 @@
+(record {
+  params = record {
+    stablecoin = "ckUSDC";
+    min_raise = 100_000_000_000;
+    max_raise = 1_000_000_000_000;
+    fundraise_deadline = 1_735_689_600_000_000_000;
+    phase_aprs_bps = vec { 500; 500; 500; 500; 500; 500 };
+    phase_durations = vec { 15_552_000_000_000_000; 15_552_000_000_000_000; 15_552_000_000_000_000; 15_552_000_000_000_000; 15_552_000_000_000_000; 15_552_000_000_000_000 };
+    phase_withdraw_caps_bps = vec { 2000; 2000; 2000; 2000; 2000; 2000 };
+    token_name = "Example Project Token";
+    token_symbol = "EPT";
+  };
+})

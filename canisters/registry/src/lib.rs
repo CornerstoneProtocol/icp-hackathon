@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 
 thread_local! {
-    static REGISTRY: RefCell<Option<RegistryState>> = RefCell::new(None);
+    static REGISTRY: RefCell<Option<RegistryState>> = const { RefCell::new(None) };
 }
 
 fn now() -> Timestamp {

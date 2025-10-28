@@ -176,9 +176,7 @@ impl ProjectState {
     }
 
     fn account_mut(&mut self, id: &Principal) -> &mut AccountState {
-        self.accounts
-            .entry(id.clone())
-            .or_insert_with(AccountState::default)
+        self.accounts.entry(*id).or_default()
     }
 
     fn account(&self, id: &Principal) -> AccountState {
@@ -316,10 +314,10 @@ impl ProjectState {
         if self.fundraise_closed && !self.fundraise_successful {
             return Err(ProjectError::FundraiseFailed);
         }
-        if self.current_phase == 0 {
-            if now > self.params.fundraise_deadline || self.fundraise_closed {
-                return Err(ProjectError::FundraiseEnded);
-            }
+        if self.current_phase == 0
+            && (now > self.params.fundraise_deadline || self.fundraise_closed)
+        {
+            return Err(ProjectError::FundraiseEnded);
         }
         if amount == 0 {
             return Err(ProjectError::AmountZero);
@@ -354,7 +352,7 @@ impl ProjectState {
             .total_supply
             .checked_add(amount)
             .ok_or(ProjectError::ArithmeticOverflow)?;
-        self.apply_transfer_corrections(None, Some(to.clone()), amount)?;
+        self.apply_transfer_corrections(None, Some(*to), amount)?;
         Ok(())
     }
 
@@ -365,7 +363,7 @@ impl ProjectState {
         }
         acct.balance -= amount;
         self.total_supply -= amount;
-        self.apply_transfer_corrections(Some(from.clone()), None, amount)?;
+        self.apply_transfer_corrections(Some(*from), None, amount)?;
         Ok(())
     }
 
@@ -569,10 +567,7 @@ impl ProjectState {
             .principal_buffer
             .checked_add(amount)
             .ok_or(ProjectError::ArithmeticOverflow)?;
-        let principal_outstanding = self
-            .total_raised
-            .checked_sub(self.principal_redeemed)
-            .unwrap_or(0);
+        let principal_outstanding = self.total_raised.saturating_sub(self.principal_redeemed);
         if self.principal_buffer > principal_outstanding {
             let revenue = self.principal_buffer - principal_outstanding;
             self.principal_buffer = principal_outstanding;
@@ -689,7 +684,7 @@ impl ProjectState {
         {
             self.fundraise_closed = true;
         }
-        if !(self.fundraise_closed && !self.fundraise_successful) {
+        if !self.fundraise_closed || self.fundraise_successful {
             return Err(ProjectError::RefundUnavailable);
         }
         let acct = self.account(caller);
@@ -726,11 +721,7 @@ impl ProjectState {
             return 0;
         }
         let accrued = corrected as u128;
-        if accrued <= acct.interest_withdrawn {
-            0
-        } else {
-            accrued - acct.interest_withdrawn
-        }
+        accrued.saturating_sub(acct.interest_withdrawn)
     }
 
     pub fn claimable_revenue(&self, caller: &Principal) -> Amount {
@@ -746,11 +737,7 @@ impl ProjectState {
             return 0;
         }
         let accrued = corrected as u128;
-        if accrued <= acct.revenue_withdrawn {
-            0
-        } else {
-            accrued - acct.revenue_withdrawn
-        }
+        accrued.saturating_sub(acct.revenue_withdrawn)
     }
 
     pub fn accrue_interest(&mut self, now: Timestamp) -> Result<(), ProjectError> {
@@ -776,7 +763,7 @@ impl ProjectState {
             .balance
             .checked_add(amount)
             .ok_or(ProjectError::ArithmeticOverflow)?;
-        self.apply_transfer_corrections(Some(from.clone()), Some(to.clone()), amount)
+        self.apply_transfer_corrections(Some(*from), Some(*to), amount)
     }
 }
 
@@ -818,7 +805,7 @@ impl RegistryState {
         self.next_id += 1;
         let listing = ProjectListing {
             id,
-            creator: caller.clone(),
+            creator: *caller,
             project_canister: None,
             token_canister: None,
             metadata_uri,

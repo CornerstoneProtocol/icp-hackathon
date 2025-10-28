@@ -3,6 +3,7 @@ import { AuthClient } from '@dfinity/auth-client';
 import { Principal } from '@dfinity/principal';
 import { idlFactory as projectIdlFactory } from './project.idl';
 import { idlFactory as registryIdlFactory } from './registry.idl';
+import { canistersConfig } from '@/config/canisters';
 
 export type Address = string; // Principal as string
 export type Amount = bigint;
@@ -12,10 +13,10 @@ export type ContractsConfig = {
   project?: string;
 };
 
-// Configuration
-const HOST = 'http://127.0.0.1:4943';
-const PROJECT_CANISTER_ID = 'uzt4z-lp777-77774-qaabq-cai';
-const REGISTRY_CANISTER_ID = 'uxrrr-q7777-77774-qaaaq-cai';
+// Configuration (favor values from canistersConfig, fall back to defaults)
+const HOST = canistersConfig.host || 'https://ic0.app';
+const PROJECT_CANISTER_ID = (import.meta.env.VITE_PROJECT_CANISTER_ID as string | undefined) || 'uzt4z-lp777-77774-qaabq-cai';
+const REGISTRY_CANISTER_ID = canistersConfig.registry || 'uxrrr-q7777-77774-qaaaq-cai';
 
 // ============================================================================
 // Authentication & Agent Management
@@ -33,7 +34,8 @@ export async function initAuth(): Promise<AuthClient> {
 
 export async function getAgent(): Promise<HttpAgent> {
   if (!agent) {
-    agent = new HttpAgent({ host: HOST });
+    const identity = await getIdentity();
+    agent = new HttpAgent({ host: HOST, identity });
     // For local development, fetch root key
     if (HOST.includes('localhost') || HOST.includes('127.0.0.1')) {
       await agent.fetchRootKey();
@@ -48,10 +50,14 @@ export async function login(method: LoginMethod = 'ii'): Promise<void> {
   switch (method) {
     case 'ii': {
       const client = await initAuth();
+      const identityProvider = canistersConfig.identityProvider || 'https://identity.ic0.app';
       return new Promise((resolve, reject) => {
         client.login({
-          identityProvider: `http://127.0.0.1:4943/?canisterId=rdmx6-jaaaa-aaaaa-aaadq-cai`,
-          onSuccess: () => resolve(),
+          identityProvider,
+          onSuccess: () => {
+            agent = null;
+            resolve();
+          },
           onError: (err) => reject(err),
         });
       });
@@ -59,8 +65,11 @@ export async function login(method: LoginMethod = 'ii'): Promise<void> {
 
     case 'plug': {
       if (!window.ic?.plug) throw new Error('Plug wallet not found');
+      const whitelist = [PROJECT_CANISTER_ID, REGISTRY_CANISTER_ID].filter(
+        (id): id is string => typeof id === 'string' && id.length > 0
+      );
       const connected = await window.ic.plug.requestConnect({
-        whitelist: [PROJECT_CANISTER_ID, REGISTRY_CANISTER_ID],
+        whitelist,
         host: HOST,
       });
       if (!connected) throw new Error('User denied Plug connection');
@@ -69,8 +78,11 @@ export async function login(method: LoginMethod = 'ii'): Promise<void> {
 
     case 'bitfinity': {
       if (!window.ic?.bitfinityWallet) throw new Error('Bitfinity wallet not found');
+      const whitelist = [PROJECT_CANISTER_ID, REGISTRY_CANISTER_ID].filter(
+        (id): id is string => typeof id === 'string' && id.length > 0
+      );
       await window.ic.bitfinityWallet.requestConnect({
-        whitelist: [PROJECT_CANISTER_ID, REGISTRY_CANISTER_ID],
+        whitelist,
         host: HOST,
       });
       return;
@@ -206,7 +218,10 @@ export type ProjectState = {
   total_supply: bigint;
   interest_per_share_x18: bigint;
   revenue_per_share_x18: bigint;
-  accounts: Map<string, AccountState>;
+  accounts:
+    | Map<string, AccountState>
+    | Array<[Principal | string, AccountState]>
+    | Record<string, AccountState>;
 };
 
 export type ProjectListing = {
@@ -217,6 +232,39 @@ export type ProjectListing = {
   metadata_uri: string;
   params: ProjectParams;
   created_at: bigint;
+};
+
+const principalToText = (principal: unknown): string => {
+  if (typeof principal === 'string') {
+    return principal;
+  }
+  if (principal && typeof (principal as { toText?: () => string }).toText === 'function') {
+    return (principal as { toText: () => string }).toText();
+  }
+  return String(principal ?? '');
+};
+
+export const normalizeStateAccounts = (accounts: unknown): Map<string, AccountState> => {
+  if (accounts instanceof Map) {
+    return accounts as Map<string, AccountState>;
+  }
+
+  if (Array.isArray(accounts)) {
+    return new Map(
+      accounts.map(([principal, account]) => [principalToText(principal), account as AccountState])
+    );
+  }
+
+  if (accounts && typeof accounts === 'object') {
+    return new Map(
+      Object.entries(accounts as Record<string, AccountState>).map(([principal, account]) => [
+        principalToText(principal),
+        account,
+      ])
+    );
+  }
+
+  return new Map();
 };
 
 // ============================================================================
@@ -259,12 +307,13 @@ export async function fetchProjectRealtimeState(
   const actor = await createProjectActor(canisterId);
   
   const state = await actor.get_state() as ProjectState;
+  const accountsMap = normalizeStateAccounts(state.accounts);
   
   let claimableInterest, claimableRevenue, userBalance;
   if (accountPrincipal) {
     claimableInterest = await actor.claimable_interest(accountPrincipal) as bigint;
     claimableRevenue = await actor.claimable_revenue(accountPrincipal) as bigint;
-    const accountState = state.accounts.get(accountPrincipal.toText());
+    const accountState = accountsMap.get(accountPrincipal.toText());
     userBalance = accountState?.balance || 0n;
   }
   

@@ -1,4 +1,4 @@
-import { createProjectActor, createRegistryActor } from './icp';
+import { createProjectActor, createRegistryActor, normalizeStateAccounts } from './icp';
 import { ProjectState, ProjectListing, DocRecord, AppraisalRecord } from './icp';
 import { Principal } from '@dfinity/principal';
 
@@ -58,6 +58,7 @@ export async function getCompleteProjectData(
   try {
     const actor = await createProjectActor(canisterId);
     const state = await actor.get_state() as ProjectState;
+    const accountsMap = normalizeStateAccounts(state.accounts);
 
     // Build phase info
     const phases: PhaseInfo[] = [];
@@ -93,7 +94,7 @@ export async function getCompleteProjectData(
     if (userPrincipal) {
       const claimableInterest = await actor.claimable_interest(userPrincipal) as bigint;
       const claimableRevenue = await actor.claimable_revenue(userPrincipal) as bigint;
-      const accountState = state.accounts.get(userPrincipal.toText());
+      const accountState = accountsMap.get(userPrincipal.toText());
 
       if (accountState) {
         userMetrics = {
@@ -150,10 +151,11 @@ export async function getProjectSupportersCount(canisterId: string): Promise<num
   try {
     const actor = await createProjectActor(canisterId);
     const state = await actor.get_state() as ProjectState;
-    
+    const accountsMap = normalizeStateAccounts(state.accounts);
+
     // Filter accounts with non-zero balance (active supporters)
     let count = 0;
-    for (const [_, accountState] of state.accounts) {
+    for (const accountState of accountsMap.values()) {
       if (accountState.balance > 0n) {
         count++;
       }
@@ -162,5 +164,33 @@ export async function getProjectSupportersCount(canisterId: string): Promise<num
   } catch (error) {
     console.error('Error fetching supporters count:', error);
     return 0;
+  }
+}
+
+/**
+ * Find a project listing by its deployed project canister ID
+ */
+export async function getProjectListingByCanisterId(
+  canisterId: string
+): Promise<ProjectListing | null> {
+  try {
+    const actor = await createRegistryActor();
+    const listings = await actor.list_projects() as ProjectListing[];
+    return (
+      listings.find((listing) => {
+        const principal = listing.project_canister;
+        if (!principal) {
+          return false;
+        }
+        const principalText =
+          typeof (principal as { toText?: () => string }).toText === 'function'
+            ? (principal as { toText: () => string }).toText()
+            : String(principal);
+        return principalText === canisterId;
+      }) || null
+    );
+  } catch (error) {
+    console.error('Error locating project listing by canister:', error);
+    return null;
   }
 }

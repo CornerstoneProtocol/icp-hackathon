@@ -42,16 +42,43 @@ export async function getAgent(): Promise<HttpAgent> {
   return agent;
 }
 
-export async function login(): Promise<void> {
-  const client = await initAuth();
-  
-  return new Promise((resolve, reject) => {
-    client.login({
-      identityProvider: `http://127.0.0.1:4943/?canisterId=rdmx6-jaaaa-aaaaa-aaadq-cai`,
-      onSuccess: () => resolve(),
-      onError: (err) => reject(err),
-    });
-  });
+export type LoginMethod = 'ii' | 'plug' | 'bitfinity';
+
+export async function login(method: LoginMethod = 'ii'): Promise<void> {
+  switch (method) {
+    case 'ii': {
+      const client = await initAuth();
+      return new Promise((resolve, reject) => {
+        client.login({
+          identityProvider: `http://127.0.0.1:4943/?canisterId=rdmx6-jaaaa-aaaaa-aaadq-cai`,
+          onSuccess: () => resolve(),
+          onError: (err) => reject(err),
+        });
+      });
+    }
+
+    case 'plug': {
+      if (!window.ic?.plug) throw new Error('Plug wallet not found');
+      const connected = await window.ic.plug.requestConnect({
+        whitelist: [PROJECT_CANISTER_ID, REGISTRY_CANISTER_ID],
+        host: HOST,
+      });
+      if (!connected) throw new Error('User denied Plug connection');
+      return;
+    }
+
+    case 'bitfinity': {
+      if (!window.ic?.bitfinityWallet) throw new Error('Bitfinity wallet not found');
+      await window.ic.bitfinityWallet.requestConnect({
+        whitelist: [PROJECT_CANISTER_ID, REGISTRY_CANISTER_ID],
+        host: HOST,
+      });
+      return;
+    }
+
+    default:
+      throw new Error('Unsupported login method');
+  }
 }
 
 export async function logout(): Promise<void> {
@@ -89,21 +116,31 @@ export async function getAccount(): Promise<Address | null> {
 // ============================================================================
 
 export async function createProjectActor(canisterId: string = PROJECT_CANISTER_ID) {
-  const agent = await getAgent();
   const identity = await getIdentity();
+  const agent = new HttpAgent({ host: HOST, identity });
+  
+  // For local development, fetch root key
+  if (HOST.includes('localhost') || HOST.includes('127.0.0.1')) {
+    await agent.fetchRootKey();
+  }
   
   return Actor.createActor(projectIdlFactory, {
-    agent: new HttpAgent({ host: HOST, identity }),
+    agent,
     canisterId,
   });
 }
 
 export async function createRegistryActor(canisterId: string = REGISTRY_CANISTER_ID) {
-  const agent = await getAgent();
   const identity = await getIdentity();
+  const agent = new HttpAgent({ host: HOST, identity });
+  
+  // For local development, fetch root key
+  if (HOST.includes('localhost') || HOST.includes('127.0.0.1')) {
+    await agent.fetchRootKey();
+  }
   
   return Actor.createActor(registryIdlFactory, {
-    agent: new HttpAgent({ host: HOST, identity }),
+    agent,
     canisterId,
   });
 }
@@ -174,9 +211,9 @@ export type ProjectState = {
 
 export type ProjectListing = {
   id: bigint;
-  creator: Principal;
-  project_canister: Principal | null;
-  token_canister: Principal | null;
+  creator: Principal | string;
+  project_canister: Principal | string | null | [Principal] | [];
+  token_canister: Principal | string | null | [Principal] | [];
   metadata_uri: string;
   params: ProjectParams;
   created_at: bigint;
@@ -475,8 +512,31 @@ export async function registerProject(
   params: ProjectParams,
   metadataUri: string
 ): Promise<ProjectListing> {
-  const actor = await createRegistryActor();
-  return await actor.register_project(params, metadataUri) as ProjectListing;
+  try {
+    console.log('[registerProject] Calling registry with params:', {
+      ...params,
+      min_raise: params.min_raise.toString(),
+      max_raise: params.max_raise.toString(),
+      fundraise_deadline: params.fundraise_deadline.toString(),
+    });
+    
+    const actor = await createRegistryActor();
+    const result = await actor.register_project(params, metadataUri);
+    
+    console.log('[registerProject] Raw result:', result);
+    
+    if (result && 'Err' in result) {
+      throw new Error(result.Err);
+    }
+    
+    // The result might be wrapped or direct - handle both cases
+    const listing = (result && 'Ok' in result) ? result.Ok : result;
+    
+    return listing as ProjectListing;
+  } catch (error) {
+    console.error('[registerProject] Error:', error);
+    throw error;
+  }
 }
 
 export async function assignCanisters(

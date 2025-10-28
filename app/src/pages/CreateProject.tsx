@@ -130,7 +130,7 @@ const CreateProject = () => {
 
   async function connectWallet() {
     try {
-      await login();
+      await login('bitfinity');
       const addr = await getAccount();
       if (addr) {
         setAccount(addr);
@@ -235,7 +235,18 @@ const CreateProject = () => {
 
       // For now, store metadata as JSON string
       // In production, you'd upload this to IPFS or a storage canister
-      const metadataUri = `data:application/json;base64,${btoa(JSON.stringify(metadata))}`;
+      // Use TextEncoder and base64 for Unicode-safe encoding
+      // New Unicode-safe code:
+      const metadataJson = JSON.stringify(metadata);
+      const uint8Array = new TextEncoder().encode(metadataJson);
+
+      // Convert uint8Array to base64 in a Unicode-safe way
+      let binaryString = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binaryString += String.fromCharCode(uint8Array[i]);
+      }
+      const base64String = btoa(binaryString);
+      const metadataUri = `data:application/json;base64,${base64String}`;
 
       // Prepare project parameters
       const params: ProjectParams = {
@@ -262,22 +273,65 @@ const CreateProject = () => {
       // Call registry to register project
       const listing = await registerProject(params, metadataUri);
 
+      console.log('[CreateProject] Project registered - raw listing:', listing);
+      console.log('[CreateProject] project_canister type:', typeof listing.project_canister);
+      console.log('[CreateProject] project_canister value:', listing.project_canister);
+
+      // Handle Principal objects that might be returned as strings, objects, or arrays
+      let projectCanisterStr: string | undefined;
+      let tokenCanisterStr: string | undefined;
+      let creatorStr: string;
+
+      // Handle project_canister
+      if (listing.project_canister) {
+        if (typeof listing.project_canister === 'string') {
+          projectCanisterStr = listing.project_canister;
+        } else if (Array.isArray(listing.project_canister) && listing.project_canister.length > 0) {
+          // Candid Option types can be represented as arrays [value] or []
+          const val = listing.project_canister[0];
+          projectCanisterStr = typeof val === 'string' ? val : val?.toText?.();
+        } else if (listing.project_canister.toText) {
+          projectCanisterStr = listing.project_canister.toText();
+        }
+      }
+
+      // Handle token_canister
+      if (listing.token_canister) {
+        if (typeof listing.token_canister === 'string') {
+          tokenCanisterStr = listing.token_canister;
+        } else if (Array.isArray(listing.token_canister) && listing.token_canister.length > 0) {
+          const val = listing.token_canister[0];
+          tokenCanisterStr = typeof val === 'string' ? val : val?.toText?.();
+        } else if (listing.token_canister.toText) {
+          tokenCanisterStr = listing.token_canister.toText();
+        }
+      }
+
+      // Handle creator
+      if (typeof listing.creator === 'string') {
+        creatorStr = listing.creator;
+      } else if (listing.creator?.toText) {
+        creatorStr = listing.creator.toText();
+      } else {
+        creatorStr = 'unknown';
+      }
+
       console.log('[CreateProject] Project registered:', {
         id: listing.id.toString(),
-        creator: listing.creator.toText(),
-        project_canister: listing.project_canister?.toText(),
-        token_canister: listing.token_canister?.toText(),
+        creator: creatorStr,
+        project_canister: projectCanisterStr,
+        token_canister: tokenCanisterStr,
       });
 
       setDeployInfo({
         id: listing.id.toString(),
-        projectCanister: listing.project_canister?.toText(),
-        tokenCanister: listing.token_canister?.toText(),
+        projectCanister: projectCanisterStr,
+        tokenCanister: tokenCanisterStr,
       });
 
       toast.success('Project registered successfully!');
       
-      if (!listing.project_canister) {
+      if (!projectCanisterStr) {
         toast.info('Project and token canisters will be assigned by the system.');
       }
 

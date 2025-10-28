@@ -12,6 +12,12 @@
       "package": "registry-canister",
       "main": "canisters/registry/src/lib.rs",
       "candid": "canisters/registry/registry.did"
+    },
+    "frontend": {
+      "type": "assets",
+      "source": [
+        "app/dist"
+      ]
     }
   },
   "defaults": {

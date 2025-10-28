@@ -1,0 +1,18 @@
+[package]
+name = "registry-canister"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+candid.workspace = true
+ic-cdk.workspace = true
+ic-cdk-macros.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
+thiserror.workspace = true
+cornerstone-core = { path = "../../packages/core" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]

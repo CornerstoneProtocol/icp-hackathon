@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "canisters": {
+    "project": {
+      "type": "rust",
+      "package": "project-canister",
+      "main": "canisters/project/src/lib.rs",
+      "candid": "canisters/project/project.did"
+    },
+    "registry": {
+      "type": "rust",
+      "package": "registry-canister",
+      "main": "canisters/registry/src/lib.rs",
+      "candid": "canisters/registry/registry.did"
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": ""
+    }
+  }
+}

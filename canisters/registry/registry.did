@@ -27,6 +27,8 @@ type ProjectListing = record {
 service : (opt InitArgs) -> {
   list_projects : () -> (vec ProjectListing) query;
   get_project : (nat64) -> (opt ProjectListing) query;
-  register_project : (ProjectParams, text) -> (ProjectListing);
+  get_project_wasm_size : () -> (nat64) query;
+  register_project : (ProjectParams, text) -> (variant { Ok : ProjectListing; Err : text });
   assign_canisters : (nat64, principal, principal) -> (variant { Ok : null; Err : text });
+  set_project_wasm : (blob) -> (variant { Ok : null; Err : text });
 }

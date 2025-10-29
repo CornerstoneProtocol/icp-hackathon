@@ -32,15 +32,22 @@ const Result = IDL.Variant({
   Err: IDL.Text,
 });
 
+const ResultListing = IDL.Variant({
+  Ok: ProjectListing,
+  Err: IDL.Text,
+});
+
 export const idlFactory = ({ IDL }: { IDL: typeof import('@dfinity/candid').IDL }) => {
   return IDL.Service({
     // Query methods
     list_projects: IDL.Func([], [IDL.Vec(ProjectListing)], ['query']),
     get_project: IDL.Func([IDL.Nat64], [IDL.Opt(ProjectListing)], ['query']),
-    
+    get_project_wasm_size: IDL.Func([], [IDL.Nat], ['query']),
+
     // Update methods
-    register_project: IDL.Func([ProjectParams, IDL.Text], [ProjectListing], []),
+    register_project: IDL.Func([ProjectParams, IDL.Text], [ResultListing], []),
     assign_canisters: IDL.Func([IDL.Nat64, IDL.Principal, IDL.Principal], [Result], []),
+    set_project_wasm: IDL.Func([IDL.Vec(IDL.Nat8)], [Result], []),
   });
 };
 

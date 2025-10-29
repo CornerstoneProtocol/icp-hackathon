@@ -568,20 +568,27 @@ export async function registerProject(
       max_raise: params.max_raise.toString(),
       fundraise_deadline: params.fundraise_deadline.toString(),
     });
-    
+
     const actor = await createRegistryActor();
     const result = await actor.register_project(params, metadataUri);
-    
+
     console.log('[registerProject] Raw result:', result);
-    
+
+    // Handle Result type from Rust
     if (result && 'Err' in result) {
       throw new Error(result.Err);
     }
-    
-    // The result might be wrapped or direct - handle both cases
-    const listing = (result && 'Ok' in result) ? result.Ok : result;
-    
-    return listing as ProjectListing;
+
+    // Extract listing from Ok variant
+    const listing = result.Ok as ProjectListing;
+
+    console.log('[registerProject] Project registered with canisters:', {
+      id: listing.id.toString(),
+      project_canister: listing.project_canister,
+      token_canister: listing.token_canister,
+    });
+
+    return listing;
   } catch (error) {
     console.error('[registerProject] Error:', error);
     throw error;

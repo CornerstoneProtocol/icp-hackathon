@@ -130,7 +130,7 @@ const CreateProject = () => {
 
   async function connectWallet() {
     try {
-      await login('bitfinity');
+      await login('plug');
       const addr = await getAccount();
       if (addr) {
         setAccount(addr);

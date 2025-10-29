@@ -6,6 +6,7 @@ import { MinecraftProjectCard } from '@/components/MinecraftProjectCard';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2, Search, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Principal } from '@dfinity/principal';
 
 // Extended Project type with state data for filtering
 type ProjectWithState = ProjectListing & {
@@ -15,6 +16,24 @@ type ProjectWithState = ProjectListing & {
     totalRaised: bigint;
     currentPhase: number;
   };
+};
+
+// Helper function to extract Principal from optional array format
+const extractPrincipal = (optional: Principal | string | null | [Principal] | []): Principal | null => {
+  if (!optional) return null;
+  if (Array.isArray(optional)) {
+    return optional.length > 0 ? optional[0] : null;
+  }
+  if (typeof optional === 'string') {
+    // It's already a string representation, convert to Principal
+    try {
+      return Principal.fromText(optional);
+    } catch {
+      return null;
+    }
+  }
+  // It's already a Principal object
+  return optional;
 };
 
 const AllProjects = () => {
@@ -32,9 +51,11 @@ const AllProjects = () => {
       // Enrich projects with state data if they have project_canister assigned
       const enrichedProjects = await Promise.all(
         fetchedProjects.map(async (project) => {
-          if (project.project_canister) {
+          const projectCanister = extractPrincipal(project.project_canister);
+          
+          if (projectCanister) {
             try {
-              const canisterId = project.project_canister.toText();
+              const canisterId = projectCanister.toText();
               const { project: projectData } = await getCompleteProjectData(canisterId);
               
               if (projectData) {
@@ -84,13 +105,20 @@ const AllProjects = () => {
   const filteredProjects = projects.filter(project => {
     // Search filter - search by ID, creator principal, metadata URI
     const projectId = project.id.toString();
-    const creatorPrincipal = project.creator.toText().toLowerCase();
-    const projectCanisterId = project.project_canister?.toText().toLowerCase() || '';
+    
+    // Extract creator principal
+    const creatorPrincipal = extractPrincipal(project.creator);
+    const creatorText = creatorPrincipal ? creatorPrincipal.toText().toLowerCase() : '';
+    
+    // Extract project canister principal
+    const projectCanister = extractPrincipal(project.project_canister);
+    const projectCanisterId = projectCanister ? projectCanister.toText().toLowerCase() : '';
+    
     const metadataUri = project.metadata_uri.toLowerCase();
     
     const matchesSearch = 
       projectId.includes(searchTerm.toLowerCase()) ||
-      creatorPrincipal.includes(searchTerm.toLowerCase()) ||
+      creatorText.includes(searchTerm.toLowerCase()) ||
       projectCanisterId.includes(searchTerm.toLowerCase()) ||
       metadataUri.includes(searchTerm.toLowerCase()) ||
       project.params.token_name.toLowerCase().includes(searchTerm.toLowerCase()) ||

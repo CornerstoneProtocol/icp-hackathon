@@ -1,0 +1,106 @@
+type Account = record {
+    owner : principal;
+    subaccount : opt blob;
+};
+
+type TransferArg = record {
+    from_subaccount : opt blob;
+    to : Account;
+    amount : nat;
+    fee : opt nat;
+    memo : opt blob;
+    created_at_time : opt nat64;
+};
+
+type TransferFromArg = record {
+    spender_subaccount : opt blob;
+    from : Account;
+    to : Account;
+    amount : nat;
+    fee : opt nat;
+    memo : opt blob;
+    created_at_time : opt nat64;
+};
+
+type ApproveArg = record {
+    from_subaccount : opt blob;
+    spender : Account;
+    amount : nat;
+    expected_allowance : opt nat;
+    expires_at : opt nat64;
+    fee : opt nat;
+    memo : opt blob;
+    created_at_time : opt nat64;
+};
+
+type AllowanceArgs = record {
+    account : Account;
+    spender : Account;
+};
+
+type Allowance = record {
+    allowance : nat;
+    expires_at : opt nat64;
+};
+
+type TransferError = variant {
+    BadFee : record { expected_fee : nat };
+    BadBurn : record { min_burn_amount : nat };
+    InsufficientFunds : record { balance : nat };
+    TooOld;
+    CreatedInFuture : record { ledger_time : nat64 };
+    Duplicate : record { duplicate_of : nat };
+    TemporarilyUnavailable;
+    GenericError : record { error_code : nat; message : text };
+};
+
+type ApproveError = variant {
+    BadFee : record { expected_fee : nat };
+    InsufficientFunds : record { balance : nat };
+    AllowanceChanged : record { current_allowance : nat };
+    Expired : record { ledger_time : nat64 };
+    TooOld;
+    CreatedInFuture : record { ledger_time : nat64 };
+    Duplicate : record { duplicate_of : nat };
+    TemporarilyUnavailable;
+    GenericError : record { error_code : nat; message : text };
+};
+
+type TransferResult = variant {
+    Ok : nat;
+    Err : TransferError;
+};
+
+type ApproveResult = variant {
+    Ok : nat;
+    Err : ApproveError;
+};
+
+type BurnResult = variant {
+    Ok : nat;
+    Err : text;
+};
+
+service : {
+    // ICRC-1 Standard Methods
+    icrc1_name : () -> (text) query;
+    icrc1_symbol : () -> (text) query;
+    icrc1_decimals : () -> (nat8) query;
+    icrc1_fee : () -> (nat) query;
+    icrc1_metadata : () -> (vec record { text; text }) query;
+    icrc1_total_supply : () -> (nat) query;
+    icrc1_minting_account : () -> (opt Account) query;
+    icrc1_balance_of : (Account) -> (nat) query;
+    icrc1_supported_standards : () -> (vec record { text; text }) query;
+    icrc1_transfer : (TransferArg) -> (TransferResult);
+
+    // ICRC-2 Standard Methods
+    icrc2_approve : (ApproveArg) -> (ApproveResult);
+    icrc2_allowance : (AllowanceArgs) -> (Allowance) query;
+    icrc2_transfer_from : (TransferFromArg) -> (TransferResult);
+
+    // Utility Methods
+    mint : (Account, nat) -> (nat);
+    burn : (Account, nat) -> (BurnResult);
+    get_transaction_count : () -> (nat64) query;
+}

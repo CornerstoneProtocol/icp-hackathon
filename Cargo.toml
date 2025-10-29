@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "canisters/mock-ckUSDC",
     "canisters/project",
     "canisters/registry",
     "packages/core",

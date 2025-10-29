@@ -13,6 +13,12 @@
       "main": "canisters/registry/src/lib.rs",
       "candid": "canisters/registry/registry.did"
     },
+    "mock_ckusdc": {
+      "type": "rust",
+      "package": "mock-ckusdc-canister",
+      "main": "canisters/mock-ckUSDC/src/lib.rs",
+      "candid": "canisters/mock-ckUSDC/mock_ckusdc.did"
+    },
     "frontend": {
       "type": "assets",
       "source": [

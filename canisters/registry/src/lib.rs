@@ -67,6 +67,7 @@ fn map_err(err: ProjectError) -> String {
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
 struct ProjectInitArgs {
     params: ProjectParams,
+    owner: Principal,
 }
 
 // Helper function to create and initialize a project canister
@@ -97,7 +98,7 @@ async fn create_project_canister(
         .map_err(|e| format!("Failed to create canister: {:?}", e))?;
 
     // Prepare init args
-    let init_args = ProjectInitArgs { params };
+    let init_args = ProjectInitArgs { params, owner: creator };
     let encoded_args = Encode!(&init_args).map_err(|e| format!("Failed to encode args: {:?}", e))?;
 
     // Install code

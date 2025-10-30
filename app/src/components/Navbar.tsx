@@ -10,8 +10,22 @@ import { login, logout, isAuthenticated, getAccount } from '@/lib/icp';
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const location = useLocation();
-  const { account, isConnected, isConnecting, connect, disconnect, formatAddress } = useWallet();
+  const { account, isConnecting, connect, disconnect, formatAddress } = useWallet();
+
+  const connectWallet = async () => {
+    try {
+      await login('plug'); // Default to Internet Identity, can add method selection
+      const addr = await getAccount();
+      if (addr) {
+        setIsConnected(true);
+        toast.success('Wallet connected');
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Connect failed');
+    }
+  }
 
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -142,7 +156,7 @@ const Navbar = () => {
           ) : (
             <Button
               variant="outline"
-              onClick={connect}
+              onClick={connectWallet}
               disabled={isConnecting}
               className="minecraft-button h-10 px-4 py-2 text-white bg-[#228B22] hover:bg-[#006400] border-4 border-[#006400] font-bold"
             >
@@ -210,7 +224,7 @@ const Navbar = () => {
                 ) : (
                   <Button
                     variant="outline"
-                    onClick={connect}
+                    onClick={connectWallet}
                     disabled={isConnecting}
                     className="minecraft-button w-full text-white bg-[#228B22] hover:bg-[#006400] border-4 border-[#006400] font-bold"
                   >

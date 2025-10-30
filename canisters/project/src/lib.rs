@@ -32,11 +32,12 @@ fn with_state_mut<R>(f: impl FnOnce(&mut ProjectState) -> R) -> R {
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
 pub struct InitArgs {
     pub params: ProjectParams,
+    pub owner: Principal,
 }
 
 #[ic_cdk::init]
 fn init(args: InitArgs) {
-    let owner = caller();
+    let owner = args.owner;
     let ts = now();
     STATE.with(|s| {
         *s.borrow_mut() = Some(ProjectState::new(owner, args.params, ts));
@@ -50,6 +51,11 @@ fn map_err(err: ProjectError) -> String {
 #[ic_cdk::query]
 fn get_state() -> ProjectState {
     with_state(|state| state.clone())
+}
+
+#[ic_cdk::query]
+fn get_owner() -> Principal {
+    with_state(|state| state.get_owner())
 }
 
 #[ic_cdk::query]

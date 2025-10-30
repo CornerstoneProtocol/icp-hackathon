@@ -46,15 +46,25 @@ const ASSET_CANISTER_ID = import.meta.env.VITE_ASSET_CANISTER_ID as string | und
 let agentPromise: Promise<HttpAgent> | null = null;
 let assetActorPromise: Promise<AssetCanister> | null = null;
 
+import { AuthClient } from '@dfinity/auth-client';
+
 /**
- * Create and configure the HTTP agent for ICP
+ * Create and configure the HTTP agent for ICP with authentication
  */
 async function getAgent(): Promise<HttpAgent> {
   if (!agentPromise) {
     log('Creating ICP agent...');
     agentPromise = (async () => {
       const host = import.meta.env.VITE_IC_HOST || 'https://ic0.app';
-      const agent = new HttpAgent({ host });
+      
+      // Try to get authenticated identity
+      const authClient = await AuthClient.create();
+      const identity = authClient.getIdentity();
+      
+      const agent = new HttpAgent({ 
+        host,
+        identity, // Use the authenticated identity
+      });
       
       // Fetch root key for certificate validation on local replica
       if (import.meta.env.MODE === 'development' || host.includes('localhost')) {
@@ -66,7 +76,7 @@ async function getAgent(): Promise<HttpAgent> {
         }
       }
       
-      log('Agent created');
+      log('Agent created with identity:', identity.getPrincipal().toText());
       return agent;
     })();
   }
@@ -183,6 +193,8 @@ export async function icpUpload(files: File[]): Promise<Uploaded> {
       // Format: https://<canister-id>.raw.ic0.app<key>
       const canisterId = ASSET_CANISTER_ID!;
       const uri = `https://${canisterId}.raw.ic0.app${key}`;
+      console.log(uri);
+      
       
       results.push({
         cid: key, // Use the key as the identifier instead of IPFS CID
@@ -298,4 +310,13 @@ export async function getAsset(key: string): Promise<{
     content: result.content,
     contentType: result.content_type,
   };
+}
+
+/**
+ * Reset agent cache (call this after login/logout)
+ */
+export function resetAgentCache(): void {
+  log('Resetting agent cache');
+  agentPromise = null;
+  assetActorPromise = null;
 }

@@ -4,7 +4,7 @@ export const SUPPORTED_TOKENS = {
     name: 'ckUSDC',
     symbol: 'ckUSDC',
     decimals: 6,
-    canisterId: 'xevnm-gaaaa-aaaar-qafnq-cai', // Mainnet ckUSDC canister
+    canisterId: 'xobql-2x777-77774-qaaja-cai', // Mainnet ckUSDC canister
   },
   ckUSDT: {
     name: 'ckUSDT',
@@ -32,7 +32,7 @@ const fromEnv = () => {
   // For local development
   if (isLocal) {
     return {
-      registry: (import.meta.env.VITE_REGISTRY_CANISTER_ID as string | undefined) ?? 'uxrrr-q7777-77774-qaaaq-cai',
+      registry: (import.meta.env.VITE_REGISTRY_CANISTER_ID as string | undefined) ?? 'x4hhs-wh777-77774-qaaka-cai',
       ckusdc: (import.meta.env.VITE_CKUSDC_CANISTER_ID as string | undefined) ?? undefined,
       ckusdt: (import.meta.env.VITE_CKUSDT_CANISTER_ID as string | undefined) ?? undefined,
       host,

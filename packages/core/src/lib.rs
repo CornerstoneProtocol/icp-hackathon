@@ -159,6 +159,10 @@ impl ProjectState {
         }
     }
 
+    pub fn get_owner(&self) -> Principal {
+        self.owner
+    }
+
     pub fn ensure_owner(&self, caller: &Principal) -> Result<(), ProjectError> {
         if &self.owner == caller {
             Ok(())
@@ -792,6 +796,10 @@ impl RegistryState {
             listings: Vec::new(),
             next_id: 1,
         }
+    }
+
+    pub fn get_owner(&self) -> Principal {
+        self.owner
     }
 
     pub fn register_project(

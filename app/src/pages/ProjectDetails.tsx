@@ -63,8 +63,11 @@ const ProjectDetails = () => {
   const [uploadedDocs, setUploadedDocs] = useState<File[]>([]);
   
   // Phase document viewer state
+  // Phase document viewer state
   const [activeDocPhase, setActiveDocPhase] = useState(0);
   const [phaseDocuments, setPhaseDocuments] = useState<any[][]>([[], [], [], [], [], []]);
+  const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
+  const [documentViewerOpen, setDocumentViewerOpen] = useState(false);
   
   // Loading states
   const [isDepositing, setIsDepositing] = useState(false);
@@ -203,16 +206,18 @@ const ProjectDetails = () => {
     
     const phaseClosedEvents = projectData.project.phaseDocuments || [];
     const docsByPhase: any[][] = [[], [], [], [], [], []];
-
+    console.log(phaseClosedEvents);
+    
     phaseClosedEvents.forEach((phaseDoc: any, phaseIndex: number) => {
       if (phaseIndex < 0 || phaseIndex > 5) return;
       if (!phaseDoc || !Array.isArray(phaseDoc)) return;
+      console.log(phaseDoc);
       
       const phaseDocs = phaseDoc.map((doc: any, docIndex: number) => ({
         id: `phase${phaseIndex}-doc${docIndex}`,
-        type: doc.doc_type || 'document',
-        hash: doc.doc_hash || '',
-        uri: doc.metadata_uri || '',
+        type: doc.doc_types[0] || 'document',
+        hash: doc.doc_hashes[0] || '',
+        uri: doc.metadata_uris[0] || '',
       }));
       
       docsByPhase[phaseIndex] = phaseDocs;
@@ -373,6 +378,18 @@ const ProjectDetails = () => {
     }
   };
 
+  const getDocumentType = (doc: any) => {
+    const type = doc.type?.toLowerCase() || '';
+    const uri = doc.uri?.toLowerCase() || '';
+    
+    if (type.includes('pdf') || uri.includes('.pdf')) return 'pdf';
+    if (type.includes('image') || type.includes('jpg') || type.includes('jpeg') || type.includes('png') || type.includes('gif') || 
+        uri.includes('.jpg') || uri.includes('.jpeg') || uri.includes('.png') || uri.includes('.gif')) return 'image';
+    if (type.includes('video') || type.includes('mp4') || type.includes('webm') || 
+        uri.includes('.mp4') || uri.includes('.webm')) return 'video';
+    return 'other';
+  };
+
   const timelineEvents = useMemo(() => {
     if (!insightsData?.events?.length) return [];
     const eventTypeMap: Record<ProjectInsightsData['events'][number]['type'], 'milestone' | 'deliverable' | 'payout' | 'update'> = {
@@ -511,7 +528,6 @@ const ProjectDetails = () => {
             </div>
           </div>
         </header>
-
         {/* Main content */}
         <div className="container mx-auto px-4 py-12">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -861,6 +877,8 @@ const ProjectDetails = () => {
                       {(() => {
                         const activePhase = phasesDetails[activeDocPhase];
                         const docs = phaseDocuments[activeDocPhase] || [];
+                        console.log(docs);
+                        
                         return (
                           <>
                             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -878,32 +896,41 @@ const ProjectDetails = () => {
                             </div>
 
                             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                              {docs.length > 0 ? (
-                                docs.map((d: any) => (
-                                  <div
-                                    key={d.id || d.uri}
-                                    className="group flex h-full flex-col overflow-hidden rounded-lg border-4 border-[#654321] bg-[#F8E3B5] text-left shadow-[4px_4px_0_rgba(0,0,0,0.3)] transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_rgba(0,0,0,0.3)]"
-                                  >
-                                    <div className="relative aspect-video w-full overflow-hidden border-b-4 border-[#654321] bg-[#EBD8B0]">
-                                      <div className="flex h-full w-full items-center justify-center text-[#5D4E37]">
-                                        <FileText className="h-8 w-8" />
+                                {docs.length > 0 ? (
+                                  docs.map((d: any) => (
+                                    <button
+                                      key={d.id || d.uri}
+                                      onClick={() => {
+                                        setSelectedDocument(d);
+                                        setDocumentViewerOpen(true);
+                                      }}
+                                      className="group flex h-full flex-col overflow-hidden rounded-lg border-4 border-[#654321] bg-[#F8E3B5] text-left shadow-[4px_4px_0_rgba(0,0,0,0.3)] transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_rgba(0,0,0,0.3)] cursor-pointer"
+                                    >
+                                      <div className="relative aspect-video w-full overflow-hidden border-b-4 border-[#654321] bg-[#EBD8B0]">
+                                        <div className="flex h-full w-full items-center justify-center text-[#5D4E37]">
+                                          <FileText className="h-8 w-8" />
+                                        </div>
+                                        <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#3D2817]/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-80" />
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <div className="rounded-lg border-4 border-[#654321] bg-[#FFD700] px-3 py-1 text-xs font-bold text-[#2D1B00]">
+                                            Click to View
+                                          </div>
+                                        </div>
                                       </div>
-                                      <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#3D2817]/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-80" />
-                                    </div>
-                                    <div className="flex flex-1 flex-col justify-between p-3">
-                                      <div>
-                                        <p className="truncate text-sm font-bold text-[#2D1B00]">
-                                          {d.type || 'Document'}
-                                        </p>
-                                        <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#5D4E37]">
-                                          {d.type?.toUpperCase() || 'FILE'}
+                                      <div className="flex flex-1 flex-col justify-between p-3">
+                                        <div>
+                                          <p className="truncate text-sm font-bold text-[#2D1B00]">
+                                            {d.type || 'Document'}
+                                          </p>
+                                          <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#5D4E37]">
+                                            {d.type?.toUpperCase() || 'FILE'}
+                                          </p>
+                                        </div>
+                                        <p className="mt-2 text-[0.65rem] text-[#5D4E37] truncate">
+                                          {d.hash ? `Hash: ${d.hash.slice(0, 10)}…` : d.uri}
                                         </p>
                                       </div>
-                                      <p className="mt-2 text-[0.65rem] text-[#5D4E37] truncate">
-                                        {d.hash ? `Hash: ${d.hash.slice(0, 10)}…` : d.uri}
-                                      </p>
-                                    </div>
-                                  </div>
+                                    </button>
                                 ))
                               ) : (
                                 <div className="col-span-full flex flex-col items-center justify-center rounded-lg border-4 border-dashed border-[#654321] bg-[#F8E3B5] p-8 text-center text-sm text-[#5D4E37] shadow-[4px_4px_0_rgba(0,0,0,0.25)]">
@@ -1990,218 +2017,131 @@ const ProjectDetails = () => {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Tabs */}
-              <div className="flex flex-wrap items-center gap-3 rounded-none border-4 border-[#654321] bg-[#C4A484] p-2 shadow-[6px_6px_0_rgba(0,0,0,0.35)]">
-                {[
-                  { id: 'milestones', label: 'Phases' },
-                  { id: 'verification', label: 'Documents' },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`${minecraftTabButtonBase} ${
-                      activeTab === tab.id
-                        ? 'bg-[#FFD700] text-[#2D1B00] border-[#AA7700] shadow-[4px_4px_0_rgba(0,0,0,0.35)]'
-                        : 'bg-[#8B7355] text-white border-[#3D2817] hover:-translate-y-0.5 hover:shadow-[4px_4px_0_rgba(0,0,0,0.35)]'
-                    }`}
-                  >
-                    <span className="relative z-10 tracking-[0.25em]">{tab.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Milestones/Phases Tab */}
-              {activeTab === 'milestones' && (
-                <div className={`${minecraftPanelClass} p-6`}>
-                  <div className="relative text-[#2D1B00]">
-                    <div className="absolute left-6 top-0 h-full w-px bg-gradient-to-b from-[#3D2817] via-[#8B7355] to-transparent" />
-                    <div className="space-y-8">
-                      {phasesDetails.map((p, idx) => {
-                        const statusKey = p.status as keyof typeof phaseStatusDot;
-                        const dotTone = phaseStatusDot[statusKey] ?? 'bg-slate-300';
-                        const badgeTone = phaseStatusBadge[statusKey] ?? 'bg-muted text-foreground';
-                        const progressWidth = `${Math.min(100, Math.round(p.withdrawnPctOfCap))}%`;
-                        const infoBlocks: Array<{ label: string; value: string }> = [
-                          { label: 'APR', value: `${p.apr}%` },
-                          p.showCumulativeCap
-                            ? {
-                                label: 'Cumulative Cap',
-                                value: `${p.capBps.toFixed(1)}% (${format(Math.round(p.capAmount))} ${projectTokenConfig.symbol})`,
-                              }
-                            : {
-                                label: 'Phase Cap',
-                                value: `${format(Math.round(p.capAmount))} ${projectTokenConfig.symbol}`,
-                              },
-                          p.showWithdrawn
-                            ? { label: 'Withdrawn', value: `${format(Math.round(p.withdrawn))} ${projectTokenConfig.symbol}` }
-                            : null,
-                        ].filter(Boolean) as Array<{ label: string; value: string }>;
-
-                        return (
-                          <div key={p.index} className="relative flex gap-6 pl-12 md:pl-16">
-                            <div className="absolute left-4 top-6 z-10 flex h-4 w-4 items-center justify-center rounded-full border-4 border-[#3D2817] bg-[#F8E3B5] shadow-[3px_3px_0_rgba(0,0,0,0.3)]">
-                              <span className={`h-2.5 w-2.5 rounded-full ${dotTone}`} />
-                            </div>
-                            <div
-                              className={`w-full rounded-lg border-4 border-[#654321] p-5 shadow-[4px_4px_0_rgba(0,0,0,0.3)] transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_rgba(0,0,0,0.3)] ${
-                                idx === currentPhaseIndex ? 'bg-[#FFDFA6]' : 'bg-[#F8E3B5]'
-                              }`}
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-xs font-bold uppercase tracking-[0.35em] text-[#5D4E37]">
-                                    Phase {p.index + 1}
-                                  </p>
-                                  <h3 className="text-lg font-bold text-[#2D1B00]">{p.name}</h3>
-                                </div>
-                                <Badge className={`rounded-none px-4 py-1 text-xs font-bold uppercase tracking-[0.25em] ${badgeTone}`}>
-                                  {p.status}
-                                </Badge>
-                              </div>
-
-                              <div className="mt-4 grid gap-4 md:grid-cols-3">
-                                {infoBlocks.map((block) => (
-                                  <div key={block.label}>
-                                    <p className="text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#5D4E37]">
-                                      {block.label}
-                                    </p>
-                                    <p className="text-sm font-bold text-[#2D1B00]">
-                                      {loading ? <Skeleton className="h-4 w-20" /> : block.value}
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-
-                              {p.showWithdrawn && (
-                                <>
-                                  <div className="mt-5 space-y-2">
-                                    <div className="flex items-center justify-between text-xs font-semibold text-[#5D4E37]">
-                                      <span>Cap Unlock Progress</span>
-                                      <span>{progressWidth}</span>
-                                    </div>
-                                    <div className="relative h-2 w-full overflow-hidden rounded-none border-4 border-[#654321] bg-[#B08D69]">
-                                      <div
-                                        className="absolute inset-y-0 left-0 bg-[#5599FF]"
-                                        style={{ width: progressWidth }}
-                                      />
-                                    </div>
-                                  </div>
-                                  <p className="mt-3 text-xs text-[#5D4E37]">
-                                    Phase cap unlocked and included in cumulative developer withdrawals.
-                                  </p>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Documents/Verification Tab */}
-              {activeTab === 'verification' && (
-                <div className={`${minecraftPanelClass} p-6`}>
-                  <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-                    <div className="space-y-3">
-                      {phasesDetails.map((p) => {
-                        const statusKey = p.status as keyof typeof phaseStatusBadge;
-                        const docs = phaseDocuments[p.index] || [];
-                        return (
-                          <button
-                            key={`docs-nav-${p.index}`}
-                            type="button"
-                            onClick={() => setActiveDocPhase(p.index)}
-                            className={`w-full rounded-lg border-4 px-4 py-3 text-left font-semibold tracking-[0.05em] shadow-[3px_3px_0_rgba(0,0,0,0.25)] transition-all ${
-                              activeDocPhase === p.index
-                                ? 'border-[#AA7700] bg-[#FFDFA6] text-[#2D1B00]'
-                                : 'border-[#654321] bg-[#EBD8B0] text-[#5D4E37] hover:-translate-y-1 hover:shadow-[5px_5px_0_rgba(0,0,0,0.3)]'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-semibold">Phase {p.index + 1}</p>
-                              <Badge className={`rounded-none px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.2em] ${phaseStatusBadge[statusKey] ?? ''}`}>
-                                {p.status}
-                              </Badge>
-                            </div>
-                            <p className="mt-1 text-xs text-[#5D4E37]">{p.name}</p>
-                            <div className="mt-3 flex items-center justify-between text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-[#5D4E37]">
-                              <span>{docs.length} docs</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className={`${minecraftSubPanelClass} p-5 text-[#2D1B00]`}>
-                      {(() => {
-                        const activePhase = phasesDetails[activeDocPhase];
-                        const docs = phaseDocuments[activeDocPhase] || [];
-                        return (
-                          <>
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div>
-                                <p className="text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#5D4E37]">
-                                  Phase {activePhase.index + 1}
-                                </p>
-                                <h3 className="text-lg font-bold text-[#2D1B00]">
-                                  {activePhase.name}
-                                </h3>
-                              </div>
-                              <Badge className="rounded-none border-4 border-[#654321] bg-[#FFD700] px-4 py-1 text-xs font-bold uppercase tracking-[0.2em] text-[#2D1B00] shadow-[2px_2px_0_rgba(0,0,0,0.25)]">
-                                {activePhase.status}
-                              </Badge>
-                            </div>
-
-                            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                              {docs.length > 0 ? (
-                                docs.map((d: any) => (
-                                  <div
-                                    key={d.id || d.uri}
-                                    className="group flex h-full flex-col overflow-hidden rounded-lg border-4 border-[#654321] bg-[#F8E3B5] text-left shadow-[4px_4px_0_rgba(0,0,0,0.3)] transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_rgba(0,0,0,0.3)]"
-                                  >
-                                    <div className="relative aspect-video w-full overflow-hidden border-b-4 border-[#654321] bg-[#EBD8B0]">
-                                      <div className="flex h-full w-full items-center justify-center text-[#5D4E37]">
-                                        <FileText className="h-8 w-8" />
-                                      </div>
-                                      <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#3D2817]/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-80" />
-                                    </div>
-                                    <div className="flex flex-1 flex-col justify-between p-3">
-                                      <div>
-                                        <p className="truncate text-sm font-bold text-[#2D1B00]">
-                                          {d.type || 'Document'}
-                                        </p>
-                                        <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#5D4E37]">
-                                          {d.type?.toUpperCase() || 'FILE'}
-                                        </p>
-                                      </div>
-                                      <p className="mt-2 text-[0.65rem] text-[#5D4E37] truncate">
-                                        {d.hash ? `Hash: ${d.hash.slice(0, 10)}…` : d.uri}
-                                      </p>
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="col-span-full flex flex-col items-center justify-center rounded-lg border-4 border-dashed border-[#654321] bg-[#F8E3B5] p-8 text-center text-sm text-[#5D4E37] shadow-[4px_4px_0_rgba(0,0,0,0.25)]">
-                                  <FileText className="mb-3 h-10 w-10 text-[#3D2817]" />
-                                  <p>No documents uploaded for this phase yet.</p>
-                                  <p className="mt-1 text-xs text-[#3D2817]">
-                                    Developer submissions will appear here once the phase closes.
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
+          <Dialog open={documentViewerOpen} onOpenChange={setDocumentViewerOpen}>
+            <DialogContent className={`${minecraftPanelClass} max-w-4xl max-h-[90vh]`}>
+              <DialogHeader className="pb-4 border-b-4 border-[#654321]">
+                <DialogTitle className="text-xl font-bold uppercase tracking-[0.2em] text-[#2D1B00]">
+                  Document Viewer
+                </DialogTitle>
+                <DialogDescription className="text-sm font-semibold text-[#5D4E37]">
+                  {selectedDocument?.type || 'Document'}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="py-4 overflow-auto max-h-[70vh]">
+                {selectedDocument && (
+                  <div className="space-y-4">
+                    <div className={`${minecraftSubPanelClass} p-4`}>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#5D4E37] mb-1">Type</p>
+                          <p className="font-bold text-[#2D1B00]">{selectedDocument.type || 'Unknown'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#5D4E37] mb-1">Hash</p>
+                          <p className="font-mono text-xs text-[#2D1B00] break-all">
+                            {selectedDocument.hash || 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                      {selectedDocument.uri && (
+                        <div className="mt-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#5D4E37] mb-1">URI</p>
+                          <p className="font-mono text-xs text-[#2D1B00] break-all">
+                            {selectedDocument.uri}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={`${minecraftSubPanelClass} p-4`}>
+                      {(() => {
+                        const docType = getDocumentType(selectedDocument);
+                        
+                        if (docType === 'pdf') {
+                          return (
+                            <div className="w-full h-[600px] border-4 border-[#654321] bg-white">
+                              <iframe
+                                src={selectedDocument.uri}
+                                className="w-full h-full"
+                                title="PDF Viewer"
+                              />
+                            </div>
+                          );
+                        } else if (docType === 'image') {
+                          return (
+                            <div className="w-full border-4 border-[#654321] bg-[#EBD8B0]">
+                              <img
+                                src={selectedDocument.uri}
+                                alt={selectedDocument.type || 'Document'}
+                                className="w-full h-auto"
+                              />
+                            </div>
+                          );
+                        } else if (docType === 'video') {
+                          return (
+                            <div className="w-full border-4 border-[#654321] bg-black">
+                              <video
+                                src={selectedDocument.uri}
+                                controls
+                                className="w-full h-auto"
+                              >
+                                Your browser does not support the video tag.
+                              </video>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                              <FileText className="h-16 w-16 text-[#5D4E37] mb-4" />
+                              <p className="text-sm font-bold text-[#2D1B00] mb-2">
+                                Preview not available for this file type
+                              </p>
+                              <p className="text-xs text-[#5D4E37] mb-4">
+                                {selectedDocument.type || 'Unknown file type'}
+                              </p>
+                              {selectedDocument.uri && (
+                                <a
+                                  href={selectedDocument.uri}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`${minecraftPrimaryButtonClass} px-6 py-2`}
+                                >
+                                  Open in New Tab
+                                </a>
+                              )}
+                            </div>
+                          );
+                        }
+                      })()}
+                    </div>
+
+                    <div className="flex gap-2">
+                      {selectedDocument.uri && (
+                        <a
+                          href={selectedDocument.uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`${minecraftPrimaryButtonClass} flex-1 h-12 flex items-center justify-center`}
+                        >
+                          Open in New Tab
+                        </a>
+                      )}
+                      <Button
+                        variant="outline"
+                        className={`${minecraftNeutralButtonClass} flex-1 h-12`}
+                        onClick={() => setDocumentViewerOpen(false)}
+                      >
+                        Close
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>

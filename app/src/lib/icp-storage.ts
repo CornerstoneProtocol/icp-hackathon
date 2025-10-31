@@ -192,7 +192,7 @@ export async function icpUpload(files: File[]): Promise<Uploaded> {
       // Create ICP URL for the asset
       // Format: https://<canister-id>.raw.ic0.app<key>
       const canisterId = ASSET_CANISTER_ID!;
-      const uri = `https://${canisterId}.raw.ic0.app${key}`;
+      const uri = `${canisterId}.localhost:4943${key}`;
       console.log(uri);
       
       

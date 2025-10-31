@@ -34,6 +34,8 @@ import {
 import { getCompleteProjectData, getProjectSupportersCount } from '@/lib/canister-queries';
 import { TOKEN_CONFIG, getTokenConfigByCanisterId } from '@/config/canisters';
 import { Principal } from '@dfinity/principal';
+import { buildProjectInsightsData, ProjectInsightsData } from '@/lib/project-insights';
+import { icpUpload } from '@/lib/icp-storage';
 
 const ProjectDetails = () => {
   const { id } = useParams();
@@ -303,6 +305,102 @@ const ProjectDetails = () => {
     Upcoming: 'bg-[#8B7355]',
   } as const;
 
+  // Build insights data for flow insights panel
+  const insightsData = useMemo(
+    () =>
+      buildProjectInsightsData({
+        project: projectData?.project,
+        staticConfig,
+        tokenSymbol: projectTokenConfig.symbol,
+        now: Date.now(),
+      }),
+    [projectData, staticConfig, projectTokenConfig.symbol],
+  );
+
+  // Format date for timeline
+  const formatDateLabel = (timestamp: number | null | undefined) => {
+    if (!timestamp || !Number.isFinite(timestamp)) return '';
+    return new Date(timestamp).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const formatRelativeTime = (timestamp: number | null | undefined) => {
+    if (!timestamp || !Number.isFinite(timestamp)) return '';
+    const diffSeconds = (timestamp - Date.now()) / 1000;
+    const divisions: Array<{ amount: number; unit: Intl.RelativeTimeFormatUnit }> = [
+      { amount: 60, unit: 'second' },
+      { amount: 60, unit: 'minute' },
+      { amount: 24, unit: 'hour' },
+      { amount: 7, unit: 'day' },
+      { amount: 4.34524, unit: 'week' },
+      { amount: 12, unit: 'month' },
+      { amount: Infinity, unit: 'year' },
+    ];
+    try {
+      let duration = diffSeconds;
+      const formatter = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' });
+      for (const division of divisions) {
+        if (Math.abs(duration) < division.amount) {
+          return formatter.format(Math.round(duration), division.unit);
+        }
+        duration /= division.amount;
+      }
+    } catch {
+      // ignore if Intl.RelativeTimeFormat is unavailable
+    }
+    return '';
+  };
+
+  const describeTimelineEvent = (event: ProjectInsightsData['events'][number]) => {
+    switch (event.type) {
+      case 'deposit':
+        return event.subtitle ? `Investor deposits totaled ${event.subtitle}.` : 'Investor deposit recorded on-chain.';
+      case 'withdrawal':
+        return event.subtitle ? `Developer withdrawal processed for ${event.subtitle}.` : 'Developer withdrawal processed.';
+      case 'phase':
+        return `${typeof event.phaseId === 'number' ? `Phase ${event.phaseId + 1}` : 'Phase'} closed and documentation verified.`;
+      case 'reserve':
+        return event.subtitle ? `Interest reserve funded with ${event.subtitle}.` : 'Interest reserve funded on-chain.';
+      case 'proceeds':
+        return event.subtitle ? `Sales proceeds submitted totaling ${event.subtitle}.` : 'Sales proceeds submitted.';
+      case 'fundraise':
+        return 'Fundraise status updated and captured on-chain.';
+      default:
+        return 'On-chain update recorded.';
+    }
+  };
+
+  const timelineEvents = useMemo(() => {
+    if (!insightsData?.events?.length) return [];
+    const eventTypeMap: Record<ProjectInsightsData['events'][number]['type'], 'milestone' | 'deliverable' | 'payout' | 'update'> = {
+      deposit: 'update',
+      withdrawal: 'payout',
+      phase: 'milestone',
+      reserve: 'update',
+      proceeds: 'payout',
+      fundraise: 'milestone',
+    };
+    return insightsData.events
+      .slice()
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map((event) => {
+        const dateLabel = formatDateLabel(event.timestamp);
+        const relative = formatRelativeTime(event.timestamp);
+        const metaParts = [relative, dateLabel, event.subtitle].filter(Boolean);
+        const meta = metaParts.length ? metaParts.join(' • ') : 'On-chain update';
+        return {
+          id: event.id,
+          type: eventTypeMap[event.type] ?? 'update',
+          title: event.title,
+          meta,
+          description: describeTimelineEvent(event),
+        };
+      });
+  }, [insightsData.events]);
+
   const capitalSummaryMetrics = [
     {
       id: 'withdrawn',
@@ -561,7 +659,9 @@ const ProjectDetails = () => {
               <div className="flex flex-wrap items-center gap-3 rounded-none border-4 border-[#654321] bg-[#C4A484] p-2 shadow-[6px_6px_0_rgba(0,0,0,0.35)]">
                 {[
                   { id: 'milestones', label: 'Phases' },
+                  { id: 'flow-insights', label: 'Flow Insights' },
                   { id: 'verification', label: 'Documents' },
+                  { id: 'timeline', label: 'Timeline' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -576,6 +676,62 @@ const ProjectDetails = () => {
                   </button>
                 ))}
               </div>
+
+              {/* Flow Insights Tab */}
+              {activeTab === 'flow-insights' && (
+                <div className={`${minecraftPanelClass} p-6`}>
+                  <div className="-mx-2 overflow-x-auto px-2 pb-2">
+                    <ProjectInsightsPanel
+                      loading={loading}
+                      data={insightsData}
+                      tokenSymbol={projectTokenConfig.symbol}
+                      className="min-w-[720px] w-full"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Timeline Tab */}
+              {activeTab === 'timeline' && (
+                <div className={`${minecraftPanelClass} p-6`}>
+                  <div className="relative text-[#2D1B00]">
+                    {timelineEvents.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-sm text-[#5D4E37]">
+                        <span>No on-chain activity recorded yet.</span>
+                        <span>Deployments, withdrawals, and updates will appear here automatically.</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="pointer-events-none absolute left-6 top-3 h-[calc(100%-1.5rem)] w-px bg-gradient-to-b from-[#3D2817] via-[#8B7355] to-transparent md:left-1/2 md:-translate-x-1/2" />
+                        <div className="space-y-10">
+                          {timelineEvents.map((event, idx) => (
+                            <div
+                              key={event.id}
+                              className={`relative flex gap-6 pl-12 md:pl-0 ${idx % 2 === 1 ? 'md:justify-end' : 'md:justify-start'}`}
+                            >
+                              <div className="absolute left-5 top-4 flex h-4 w-4 items-center justify-center rounded-full border-4 border-[#3D2817] bg-[#FFD700] shadow-[3px_3px_0_rgba(0,0,0,0.3)] md:left-1/2 md:-translate-x-1/2" />
+                              <div
+                                className={`relative w-full md:max-w-[45%] ${
+                                  idx % 2 === 1 ? 'md:translate-x-6' : 'md:-translate-x-6'
+                                }`}
+                              >
+                                <TimelineCard
+                                  className="border-4 border-[#654321] bg-[#F8E3B5] p-5 text-[#2D1B00] shadow-[4px_4px_0_rgba(0,0,0,0.3)] transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_rgba(0,0,0,0.3)]"
+                                  type={event.type}
+                                  title={event.title}
+                                  meta={event.meta}
+                                >
+                                  {event.description}
+                                </TimelineCard>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Milestones/Phases Tab */}
               {activeTab === 'milestones' && (
@@ -1476,16 +1632,23 @@ const ProjectDetails = () => {
                               
                               const phaseId = projectData?.project?.currentPhase ?? 0;
                               
-                              // Create document records from uploaded files
+                              // Upload files to ICP asset canister
+                              toast.info('Uploading documents to ICP storage...');
+                              const uploadResults = await icpUpload(uploadedDocs);
+                              
+                              // Create document records from upload results
                               const docTypes: string[] = [];
                               const docHashes: string[] = [];
                               const metadataURIs: string[] = [];
                               
-                              for (const file of uploadedDocs) {
-                                docTypes.push(file.type || file.name.split('.').pop() || 'file');
-                                // In production, you would calculate actual hash and upload to IPFS/storage
-                                docHashes.push(`0x${Date.now().toString(16)}`);
-                                metadataURIs.push(`ipfs://placeholder/${file.name}`);
+                              for (const result of uploadResults) {
+                                // Extract file extension or use the original path
+                                const fileExt = result.path.split('.').pop() || 'file';
+                                docTypes.push(fileExt);
+                                // Use the CID (which is the key in ICP) as the hash
+                                docHashes.push(result.cid);
+                                // Use the full URI for metadata
+                                metadataURIs.push(result.uri);
                               }
                               
                               const docs: DocRecord = {
@@ -1495,11 +1658,14 @@ const ProjectDetails = () => {
                                 submitted_at: BigInt(Date.now() * 1000000), // Convert to nanoseconds
                               };
                               
+                              toast.info('Closing phase with uploaded documents...');
                               await closePhase(canisterId, phaseId, docs);
-                              toast.success(`Phase ${phaseId} closed successfully!`);
+                              
+                              toast.success(`Phase ${phaseId} closed successfully with ${uploadResults.length} document(s)!`);
                               setUploadedDocs([]);
                               await refresh();
                             } catch (e: any) {
+                              console.error('Close phase error:', e);
                               toast.error('Close phase failed', {
                                 description: e?.message || 'Could not close phase'
                               });
@@ -1824,6 +1990,216 @@ const ProjectDetails = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Tabs */}
+              <div className="flex flex-wrap items-center gap-3 rounded-none border-4 border-[#654321] bg-[#C4A484] p-2 shadow-[6px_6px_0_rgba(0,0,0,0.35)]">
+                {[
+                  { id: 'milestones', label: 'Phases' },
+                  { id: 'verification', label: 'Documents' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`${minecraftTabButtonBase} ${
+                      activeTab === tab.id
+                        ? 'bg-[#FFD700] text-[#2D1B00] border-[#AA7700] shadow-[4px_4px_0_rgba(0,0,0,0.35)]'
+                        : 'bg-[#8B7355] text-white border-[#3D2817] hover:-translate-y-0.5 hover:shadow-[4px_4px_0_rgba(0,0,0,0.35)]'
+                    }`}
+                  >
+                    <span className="relative z-10 tracking-[0.25em]">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Milestones/Phases Tab */}
+              {activeTab === 'milestones' && (
+                <div className={`${minecraftPanelClass} p-6`}>
+                  <div className="relative text-[#2D1B00]">
+                    <div className="absolute left-6 top-0 h-full w-px bg-gradient-to-b from-[#3D2817] via-[#8B7355] to-transparent" />
+                    <div className="space-y-8">
+                      {phasesDetails.map((p, idx) => {
+                        const statusKey = p.status as keyof typeof phaseStatusDot;
+                        const dotTone = phaseStatusDot[statusKey] ?? 'bg-slate-300';
+                        const badgeTone = phaseStatusBadge[statusKey] ?? 'bg-muted text-foreground';
+                        const progressWidth = `${Math.min(100, Math.round(p.withdrawnPctOfCap))}%`;
+                        const infoBlocks: Array<{ label: string; value: string }> = [
+                          { label: 'APR', value: `${p.apr}%` },
+                          p.showCumulativeCap
+                            ? {
+                                label: 'Cumulative Cap',
+                                value: `${p.capBps.toFixed(1)}% (${format(Math.round(p.capAmount))} ${projectTokenConfig.symbol})`,
+                              }
+                            : {
+                                label: 'Phase Cap',
+                                value: `${format(Math.round(p.capAmount))} ${projectTokenConfig.symbol}`,
+                              },
+                          p.showWithdrawn
+                            ? { label: 'Withdrawn', value: `${format(Math.round(p.withdrawn))} ${projectTokenConfig.symbol}` }
+                            : null,
+                        ].filter(Boolean) as Array<{ label: string; value: string }>;
+
+                        return (
+                          <div key={p.index} className="relative flex gap-6 pl-12 md:pl-16">
+                            <div className="absolute left-4 top-6 z-10 flex h-4 w-4 items-center justify-center rounded-full border-4 border-[#3D2817] bg-[#F8E3B5] shadow-[3px_3px_0_rgba(0,0,0,0.3)]">
+                              <span className={`h-2.5 w-2.5 rounded-full ${dotTone}`} />
+                            </div>
+                            <div
+                              className={`w-full rounded-lg border-4 border-[#654321] p-5 shadow-[4px_4px_0_rgba(0,0,0,0.3)] transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_rgba(0,0,0,0.3)] ${
+                                idx === currentPhaseIndex ? 'bg-[#FFDFA6]' : 'bg-[#F8E3B5]'
+                              }`}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-bold uppercase tracking-[0.35em] text-[#5D4E37]">
+                                    Phase {p.index + 1}
+                                  </p>
+                                  <h3 className="text-lg font-bold text-[#2D1B00]">{p.name}</h3>
+                                </div>
+                                <Badge className={`rounded-none px-4 py-1 text-xs font-bold uppercase tracking-[0.25em] ${badgeTone}`}>
+                                  {p.status}
+                                </Badge>
+                              </div>
+
+                              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                                {infoBlocks.map((block) => (
+                                  <div key={block.label}>
+                                    <p className="text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#5D4E37]">
+                                      {block.label}
+                                    </p>
+                                    <p className="text-sm font-bold text-[#2D1B00]">
+                                      {loading ? <Skeleton className="h-4 w-20" /> : block.value}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {p.showWithdrawn && (
+                                <>
+                                  <div className="mt-5 space-y-2">
+                                    <div className="flex items-center justify-between text-xs font-semibold text-[#5D4E37]">
+                                      <span>Cap Unlock Progress</span>
+                                      <span>{progressWidth}</span>
+                                    </div>
+                                    <div className="relative h-2 w-full overflow-hidden rounded-none border-4 border-[#654321] bg-[#B08D69]">
+                                      <div
+                                        className="absolute inset-y-0 left-0 bg-[#5599FF]"
+                                        style={{ width: progressWidth }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <p className="mt-3 text-xs text-[#5D4E37]">
+                                    Phase cap unlocked and included in cumulative developer withdrawals.
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Documents/Verification Tab */}
+              {activeTab === 'verification' && (
+                <div className={`${minecraftPanelClass} p-6`}>
+                  <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+                    <div className="space-y-3">
+                      {phasesDetails.map((p) => {
+                        const statusKey = p.status as keyof typeof phaseStatusBadge;
+                        const docs = phaseDocuments[p.index] || [];
+                        return (
+                          <button
+                            key={`docs-nav-${p.index}`}
+                            type="button"
+                            onClick={() => setActiveDocPhase(p.index)}
+                            className={`w-full rounded-lg border-4 px-4 py-3 text-left font-semibold tracking-[0.05em] shadow-[3px_3px_0_rgba(0,0,0,0.25)] transition-all ${
+                              activeDocPhase === p.index
+                                ? 'border-[#AA7700] bg-[#FFDFA6] text-[#2D1B00]'
+                                : 'border-[#654321] bg-[#EBD8B0] text-[#5D4E37] hover:-translate-y-1 hover:shadow-[5px_5px_0_rgba(0,0,0,0.3)]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold">Phase {p.index + 1}</p>
+                              <Badge className={`rounded-none px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.2em] ${phaseStatusBadge[statusKey] ?? ''}`}>
+                                {p.status}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-[#5D4E37]">{p.name}</p>
+                            <div className="mt-3 flex items-center justify-between text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-[#5D4E37]">
+                              <span>{docs.length} docs</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className={`${minecraftSubPanelClass} p-5 text-[#2D1B00]`}>
+                      {(() => {
+                        const activePhase = phasesDetails[activeDocPhase];
+                        const docs = phaseDocuments[activeDocPhase] || [];
+                        return (
+                          <>
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#5D4E37]">
+                                  Phase {activePhase.index + 1}
+                                </p>
+                                <h3 className="text-lg font-bold text-[#2D1B00]">
+                                  {activePhase.name}
+                                </h3>
+                              </div>
+                              <Badge className="rounded-none border-4 border-[#654321] bg-[#FFD700] px-4 py-1 text-xs font-bold uppercase tracking-[0.2em] text-[#2D1B00] shadow-[2px_2px_0_rgba(0,0,0,0.25)]">
+                                {activePhase.status}
+                              </Badge>
+                            </div>
+
+                            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                              {docs.length > 0 ? (
+                                docs.map((d: any) => (
+                                  <div
+                                    key={d.id || d.uri}
+                                    className="group flex h-full flex-col overflow-hidden rounded-lg border-4 border-[#654321] bg-[#F8E3B5] text-left shadow-[4px_4px_0_rgba(0,0,0,0.3)] transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_rgba(0,0,0,0.3)]"
+                                  >
+                                    <div className="relative aspect-video w-full overflow-hidden border-b-4 border-[#654321] bg-[#EBD8B0]">
+                                      <div className="flex h-full w-full items-center justify-center text-[#5D4E37]">
+                                        <FileText className="h-8 w-8" />
+                                      </div>
+                                      <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#3D2817]/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-80" />
+                                    </div>
+                                    <div className="flex flex-1 flex-col justify-between p-3">
+                                      <div>
+                                        <p className="truncate text-sm font-bold text-[#2D1B00]">
+                                          {d.type || 'Document'}
+                                        </p>
+                                        <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#5D4E37]">
+                                          {d.type?.toUpperCase() || 'FILE'}
+                                        </p>
+                                      </div>
+                                      <p className="mt-2 text-[0.65rem] text-[#5D4E37] truncate">
+                                        {d.hash ? `Hash: ${d.hash.slice(0, 10)}…` : d.uri}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="col-span-full flex flex-col items-center justify-center rounded-lg border-4 border-dashed border-[#654321] bg-[#F8E3B5] p-8 text-center text-sm text-[#5D4E37] shadow-[4px_4px_0_rgba(0,0,0,0.25)]">
+                                  <FileText className="mb-3 h-10 w-10 text-[#3D2817]" />
+                                  <p>No documents uploaded for this phase yet.</p>
+                                  <p className="mt-1 text-xs text-[#3D2817]">
+                                    Developer submissions will appear here once the phase closes.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

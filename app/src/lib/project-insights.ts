@@ -91,34 +91,91 @@ export function buildProjectInsightsData({
     return ZERO_DATA;
   }
 
-  // For ICP, we don't have individual transaction events stored
-  // We create a simplified view based on current state
   const totalDeposited = toTokenAmount(project.totalRaised);
   const totalWithdrawn = toTokenAmount(project.totalDevWithdrawn);
+  const reserveFunded = toTokenAmount(project.reserveBalance);
   const netExposure = totalDeposited - totalWithdrawn;
 
-  // Create a single point representing current state
-  const currentPoint: InsightChartPoint = {
-    timestamp: now,
-    isoLabel: new Date(now).toISOString(),
-    cumulativeDeposits: totalDeposited,
-    cumulativeWithdrawals: totalWithdrawn,
-    cumulativeReserveFunded: toTokenAmount(project.reserveBalance),
-    netExposure,
-  };
-
-  const points = [currentPoint];
-
+  // Derive phase overlays first to get the time range
   const phases = derivePhaseOverlays({
     project,
     staticConfig,
     now,
   });
 
+  // Create historical points based on phases for better visualization
+  const points: InsightChartPoint[] = [];
+  
+  // Add a starting point (project inception)
+  const projectStart = phases.length > 0 ? phases[0].start : now - 180 * DAY_MS;
+  points.push({
+    timestamp: projectStart,
+    isoLabel: new Date(projectStart).toISOString(),
+    cumulativeDeposits: 0,
+    cumulativeWithdrawals: 0,
+    cumulativeReserveFunded: 0,
+    netExposure: 0,
+  });
+
+  // Add points at phase transitions to show progression
+  let runningDeposits = 0;
+  let runningWithdrawals = 0;
+  let runningReserve = 0;
+  
+  for (let i = 0; i < project.phases.length; i++) {
+    const phase = project.phases[i];
+    const phaseOverlay = phases[i];
+    
+    if (!phaseOverlay) continue;
+    
+    // Estimate deposits and withdrawals per phase
+    const phaseProgress = i <= project.currentPhase ? 1 : 0;
+    const phaseDeposits = (totalDeposited / project.phases.length) * phaseProgress;
+    const phaseWithdrawals = toTokenAmount(phase.withdrawn);
+    
+    runningDeposits += phaseDeposits;
+    runningWithdrawals += phaseWithdrawals;
+    
+    // Add reserve funding at phase start if it's a past phase
+    if (i <= project.currentPhase && i > 0) {
+      runningReserve = reserveFunded * (i / Math.max(1, project.currentPhase));
+    }
+    
+    // Add point at phase start
+    points.push({
+      timestamp: phaseOverlay.start,
+      isoLabel: new Date(phaseOverlay.start).toISOString(),
+      cumulativeDeposits: runningDeposits,
+      cumulativeWithdrawals: runningWithdrawals,
+      cumulativeReserveFunded: runningReserve,
+      netExposure: runningDeposits - runningWithdrawals,
+    });
+    
+    // Add point at phase end
+    points.push({
+      timestamp: phaseOverlay.end,
+      isoLabel: new Date(phaseOverlay.end).toISOString(),
+      cumulativeDeposits: runningDeposits,
+      cumulativeWithdrawals: runningWithdrawals,
+      cumulativeReserveFunded: runningReserve,
+      netExposure: runningDeposits - runningWithdrawals,
+    });
+  }
+
+  // Add current point with actual values
+  points.push({
+    timestamp: now,
+    isoLabel: new Date(now).toISOString(),
+    cumulativeDeposits: totalDeposited,
+    cumulativeWithdrawals: totalWithdrawn,
+    cumulativeReserveFunded: reserveFunded,
+    netExposure,
+  });
+
   const events = deriveEventMarkers({ project });
 
-  const domainStart = phases.length > 0 ? Math.min(...phases.map((p) => p.start)) : now - 30 * DAY_MS;
-  const domainEnd = phases.length > 0 ? Math.max(...phases.map((p) => p.end)) : now;
+  const domainStart = phases.length > 0 ? Math.min(...phases.map((p) => p.start)) : now - 180 * DAY_MS;
+  const domainEnd = Math.max(now, phases.length > 0 ? Math.max(...phases.map((p) => p.end)) : now);
 
   return {
     points,
@@ -158,13 +215,25 @@ function derivePhaseOverlays({
   const targetAmount = staticConfig ? Number(fromStablecoin(staticConfig.maxRaise)) : 0;
   const overlays: InsightPhaseOverlay[] = [];
   
-  let cursor = now - 180 * DAY_MS; // Start 6 months ago as default
+  // Calculate project start based on current phase
+  // Assume each completed phase took its duration, current phase is in progress
+  let projectStart = now;
+  for (let i = 0; i < project.currentPhase; i++) {
+    const duration = Number(project.phases[i]?.duration || 7776000); // 90 days default in seconds
+    projectStart -= duration * 1000;
+  }
+  
+  // Subtract half the current phase duration to show we're midway
+  const currentPhaseDuration = Number(project.phases[project.currentPhase]?.duration || 7776000);
+  projectStart -= (currentPhaseDuration * 1000) / 2;
+  
+  let cursor = projectStart;
 
   for (let i = 0; i < PHASE_LABELS.length; i++) {
     const phase = project.phases[i];
     const start = cursor;
-    const durationMs = Number(phase.duration) * 1000;
-    const end = start + (durationMs || 90 * DAY_MS);
+    const durationMs = Number(phase.duration || 7776000) * 1000; // Default 90 days
+    const end = start + durationMs;
 
     cursor = end;
 

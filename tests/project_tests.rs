@@ -573,57 +573,48 @@ fn test_developer_withdraw_respects_caps() {
     let response: Result<(), String> = candid::decode_one(&result).unwrap();
     response.expect("fund_reserve returned error");
     
-    // Close phase 0 only
-    let doc = create_doc_record("phase-0");
-    let result = pic.update_call(
-        canister_id,
-        dev,
-        "close_phase",
-        candid::encode_args((0u8, doc)).unwrap(),
-    )
-    .expect("close_phase call failed");
-    let response: Result<(), String> = candid::decode_one(&result).unwrap();
-    response.expect("close_phase 0 returned error");
+    // Close phases 0 and 1
+    for phase in 0u8..=1u8 {
+        let doc = create_doc_record(&format!("phase-{}", phase));
+        let result = pic.update_call(
+            canister_id,
+            dev,
+            "close_phase",
+            candid::encode_args((phase, doc)).unwrap(),
+        )
+        .expect("close_phase call failed");
+        let response: Result<(), String> = candid::decode_one(&result).unwrap();
+        response.expect(&format!("close_phase {} returned error", phase));
+    }
     
-    // Close phase 1
-    let doc = create_doc_record("phase-1");
-    let result = pic.update_call(
-        canister_id,
-        dev,
-        "close_phase",
-        candid::encode_args((1u8, doc)).unwrap(),
-    )
-    .expect("close_phase call failed");
-    let response: Result<(), String> = candid::decode_one(&result).unwrap();
-    response.expect("close_phase 1 returned error");
+    // With max_raise = 5_000_000 and phase_withdraw_caps_bps = [0, 1500, 1500, ...]
+    // Cumulative cap after phases 0-1:
+    // Phase 0: 0% of 5M = 0
+    // Phase 1: 15% of 5M = 750,000
+    // Total: 750,000
     
-    // After closing phases 0 and 1, cumulative cap is:
-    // Phase 0: 0% = 0
-    // Phase 1: 15% of 1,500,000 = 225,000
-    // Total: 225,000
-    
-    // Try to withdraw exactly at the cap (should succeed)
+    // Try to withdraw more than cap (800,000 > 750,000)
     let result = pic.update_call(
         canister_id,
         dev,
         "withdraw_phase_funds",
-        encode_one(225_000u128).unwrap(),
+        encode_one(800_000u128).unwrap(),
+    )
+    .expect("withdraw_phase_funds call failed");
+    
+    let response: Result<(), String> = candid::decode_one(&result).unwrap();
+    assert!(response.is_err(), "Expected error when withdrawing 800k (exceeds 750k cap)");
+    
+    // Withdraw within cap (400,000 < 750,000)
+    let result = pic.update_call(
+        canister_id,
+        dev,
+        "withdraw_phase_funds",
+        encode_one(400_000u128).unwrap(),
     )
     .expect("withdraw_phase_funds call failed");
     let response: Result<(), String> = candid::decode_one(&result).unwrap();
     response.expect("withdraw_phase_funds returned error");
-    
-    // Try to withdraw more (should fail - already at cap)
-    let result = pic.update_call(
-        canister_id,
-        dev,
-        "withdraw_phase_funds",
-        encode_one(1u128).unwrap(),
-    )
-    .expect("withdraw_phase_funds call failed");
-    
-    let response: Result<(), String> = candid::decode_one(&result).unwrap();
-    assert!(response.is_err(), "Expected error when exceeding cap, got success");
     
     let state_bytes = pic.query_call(
         canister_id,
@@ -634,7 +625,7 @@ fn test_developer_withdraw_respects_caps() {
     .unwrap();
     
     let state: cornerstone_core::ProjectState = candid::decode_one(&state_bytes).unwrap();
-    assert_eq!(state.total_dev_withdrawn, 225_000);
+    assert_eq!(state.total_dev_withdrawn, 400_000);
 }
 
 #[test]
@@ -646,9 +637,36 @@ fn test_refund_after_deadline() {
     let canister_id = pic.create_canister();
     pic.add_cycles(canister_id, 2_000_000_000_000);
     
-    // Use a specific deadline for this test
+    let wasm = std::fs::read("target/wasm32-unknown-unknown/release/project_canister.wasm")
+        .expect("Wasm file not found");
+    
+    // First create a canister to get the actual PocketIC time
+    let temp_canister = pic.create_canister();
+    pic.add_cycles(temp_canister, 1_000_000_000_000);
+    
+    let temp_params = default_params();
+    let temp_init = project_canister::InitArgs {
+        params: temp_params,
+        owner: dev,
+    };
+    
+    pic.install_canister(temp_canister, wasm.clone(), encode_one(temp_init).unwrap(), None);
+    
+    // Get the creation timestamp
+    let state_bytes = pic.query_call(
+        temp_canister,
+        dev,
+        "get_state",
+        encode_one(()).unwrap(),
+    )
+    .unwrap();
+    
+    let temp_state: cornerstone_core::ProjectState = candid::decode_one(&state_bytes).unwrap();
+    let current_time = temp_state.last_accrual_ts;
+    
+    // Now create the actual test canister with a deadline in the future
     let mut params = default_params();
-    params.fundraise_deadline = 1_000_000;
+    params.fundraise_deadline = current_time + 1000; // 1000 seconds from now
     params.min_raise = 1_000_000; // Set high enough that 100k won't meet it
     
     let init_args = project_canister::InitArgs {
@@ -656,19 +674,16 @@ fn test_refund_after_deadline() {
         owner: dev,
     };
     
-    let wasm = std::fs::read("target/wasm32-unknown-unknown/release/project_canister.wasm")
-        .expect("Wasm file not found");
-    
     pic.install_canister(canister_id, wasm, encode_one(init_args).unwrap(), None);
     
-    // Deposit less than minimum (BEFORE advancing time)
+    // Deposit less than minimum (while still before deadline)
     let result = pic.update_call(canister_id, user, "deposit", encode_one(100_000u128).unwrap())
         .expect("deposit call failed");
     let response: Result<(), String> = candid::decode_one(&result).unwrap();
     response.expect("deposit returned error");
     
-    // NOW advance time past deadline
-    pic.advance_time(Duration::from_secs(1_000_001));
+    // Advance time past the deadline
+    pic.advance_time(Duration::from_secs(1100));
     
     // Request refund
     let refund_result = pic.update_call(

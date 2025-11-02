@@ -33,5 +33,39 @@ time = { version = "0.3", features = ["macros"] }
 serde_json = "1"
 rand = "0.8"
 
+pocket-ic = { version = "4.0" }
+
 [workspace.metadata]
 README = "README.md"
+
+[package]
+name = "cornerstone-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+cornerstone-core = { path = "packages/core" }
+project-canister = { path = "canisters/project" }
+registry-canister = { path = "canisters/registry" }
+
+candid = { workspace = true }
+serde = { workspace = true }
+serde_bytes = { workspace = true }
+
+[dev-dependencies]
+pocket-ic = "10.0"
+tokio = { version = "1", features = ["full"] }
+serde_json = { workspace = true }
+
+[[test]]
+name = "project_tests"
+path = "tests/project_tests.rs"
+
+[[test]]
+name = "registry_tests"
+path = "tests/registry_tests.rs"
+
+[[test]]
+name = "integration_tests"
+path = "tests/integration_tests.rs"

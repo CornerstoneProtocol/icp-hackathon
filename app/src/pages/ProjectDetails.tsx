@@ -232,7 +232,9 @@ const ProjectDetails = () => {
   const totalDevWithdrawnRaw = projectData?.project?.totalDevWithdrawn ?? 0n;
   const poolBalanceRaw = realtimeData?.poolBalance ?? 0n;
   const principalBufferRaw = realtimeData?.principalBuffer ?? 0n;
-  const interestAccruedRaw = poolBalanceRaw + totalDevWithdrawnRaw - totalRaisedRaw - principalBufferRaw;
+  const interestAccruedRaw = poolBalanceRaw > totalRaisedRaw 
+  ? poolBalanceRaw - totalRaisedRaw 
+  : 0n;
   const interestAccrued = Number(fromStablecoin(interestAccruedRaw > 0n ? interestAccruedRaw : 0n));
 
   const project = {

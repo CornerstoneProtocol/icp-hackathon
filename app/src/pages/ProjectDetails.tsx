@@ -14,6 +14,7 @@ import { Plus, Edit, Upload, DollarSign, AlertTriangle, MessageSquare, Banknote,
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
   getAccount, 
+  getPrincipal,
   login, 
   isAuthenticated,
   fetchProjectRealtimeState, 
@@ -1208,8 +1209,18 @@ const ProjectDetails = () => {
                                           await refresh();
                                         } catch (e: any) {
                                           console.error('Deposit error:', e);
+                                          let connectedPrincipal = 'unknown';
+                                          try {
+                                            const principal = await getPrincipal();
+                                            if (principal) {
+                                              connectedPrincipal = principal.toText();
+                                            }
+                                          } catch {
+                                            // no-op: keep default 'unknown'
+                                          }
+                                          const baseMessage = e?.message || 'Transaction could not be completed';
                                           toast.error('Deposit failed', {
-                                            description: e?.message || 'Transaction could not be completed'
+                                            description: `${baseMessage} • Connected principal: ${connectedPrincipal}`,
                                           });
                                         } finally {
                                           setIsDepositing(false);

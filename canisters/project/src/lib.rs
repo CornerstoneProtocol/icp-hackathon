@@ -6,7 +6,14 @@ use num_traits::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 
-const CKBTC_LEDGER: &str = "twxf4-i7777-77774-qaaqq-cai"; // Canister ID for the mock ckBTC token
+fn ledger_canister_id() -> &'static str {
+    option_env!("CKBTC_LEDGER_CANISTER_ID").unwrap_or("twxf4-i7777-77774-qaaqq-cai")
+}
+
+fn ledger_principal() -> Result<Principal, String> {
+    Principal::from_text(ledger_canister_id())
+        .map_err(|e| format!("Invalid ledger principal: {:?}", e))
+}
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize)]
 pub struct Account {
@@ -74,8 +81,7 @@ fn with_state_mut<R>(f: impl FnOnce(&mut ProjectState) -> R) -> R {
 }
 
 async fn transfer_ckbtc(to: Principal, amount: Amount) -> Result<Nat, String> {
-    let ledger_id = Principal::from_text(CKBTC_LEDGER)
-        .map_err(|e| format!("Invalid ledger principal: {:?}", e))?;
+    let ledger_id = ledger_principal()?;
     
     let transfer_arg = TransferArg {
         from_subaccount: None,
@@ -101,8 +107,7 @@ async fn transfer_ckbtc(to: Principal, amount: Amount) -> Result<Nat, String> {
 }
 
 async fn get_ckbtc_balance() -> Result<Amount, String> {
-    let ledger_id = Principal::from_text(CKBTC_LEDGER)
-        .map_err(|e| format!("Invalid ledger principal: {:?}", e))?;
+    let ledger_id = ledger_principal()?;
     
     let account = Account {
         owner: ic_cdk::id(),
@@ -157,7 +162,7 @@ fn get_caller() -> Principal {
 
 #[ic_cdk::query]
 fn get_ckbtc_ledger() -> String {
-    CKBTC_LEDGER.to_string()
+    ledger_canister_id().to_string()
 }
 
 #[ic_cdk::query]
@@ -178,16 +183,13 @@ async fn deposit(amount: Amount) -> Result<(), String> {
     let caller = caller();
     let now = now();
 
-    let ledger_id = Principal::from_text(CKBTC_LEDGER)
-        .map_err(|e| format!("Invalid ledger principal: {:?}", e))?;
-    let from_owner = Principal::from_text("2vxsx-fae")
-        .map_err(|e| format!("Invalid from owner principal: {:?}", e))?;
+    let ledger_id = ledger_principal()?;
 
     // Use icrc2_transfer_from instead
     let transfer_from_arg = TransferFromArg {
         spender_subaccount: None,
         from: Account {
-            owner: from_owner,
+            owner: caller,
             subaccount: None,
         },
         to: Account {
@@ -245,8 +247,7 @@ async fn withdraw_phase_funds(amount: Amount) -> Result<(), String> {
 async fn fund_reserve(amount: Amount) -> Result<(), String> {
     let caller = caller();
     
-    let ledger_id = Principal::from_text(CKBTC_LEDGER)
-        .map_err(|e| format!("Invalid ledger principal: {:?}", e))?;
+    let ledger_id = ledger_principal()?;
     
     let transfer_arg = TransferArg {
         from_subaccount: None,
@@ -279,8 +280,7 @@ async fn submit_sales_proceeds(amount: Amount) -> Result<(), String> {
     let now = now();
     
     // Transfer ckBTC from caller to project canister
-    let ledger_id = Principal::from_text(CKBTC_LEDGER)
-        .map_err(|e| format!("Invalid ledger principal: {:?}", e))?;
+    let ledger_id = ledger_principal()?;
     
     let transfer_arg = TransferArg {
         from_subaccount: None,

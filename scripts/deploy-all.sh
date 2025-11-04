@@ -37,6 +37,16 @@ else
   dfx canister create --all
 fi
 
+# Capture canister IDs for configuration
+MOCK_CKUSDC_ID=$(dfx canister id mock_ckusdc 2>/dev/null || echo "")
+if [ -n "$MOCK_CKUSDC_ID" ]; then
+  export CKBTC_LEDGER_CANISTER_ID="$MOCK_CKUSDC_ID"
+  echo "   Using ckUSDC ledger canister: $CKBTC_LEDGER_CANISTER_ID"
+else
+  echo "❌ Failed to determine mock_ckusdc canister ID"
+  exit 1
+fi
+
 # Build all canisters
 echo ""
 echo "🔨 Building All Canisters..."
@@ -107,18 +117,55 @@ fi
 echo ""
 echo "📝 Updating Frontend Environment..."
 REGISTRY_ID=$(dfx canister id registry)
-MOCK_CKUSDC_ID=$(dfx canister id mock_ckusdc 2>/dev/null || echo "")
+PROJECT_ID=$(dfx canister id project 2>/dev/null || echo "")
+FRONTEND_ID=$(dfx canister id frontend 2>/dev/null || echo "")
 
 cat > app/.env.local <<ENV_FILE
 VITE_IC_HOST=http://127.0.0.1:4943
 VITE_REGISTRY_CANISTER_ID=${REGISTRY_ID}
 VITE_CKUSDC_CANISTER_ID=${MOCK_CKUSDC_ID}
 VITE_CKUSDT_CANISTER_ID=<ckUSDT-canister-id>
+VITE_PROJECT_CANISTER_ID=${PROJECT_ID}
+VITE_ASSET_CANISTER_ID=${FRONTEND_ID}
 ENV_FILE
 
 echo "   ✓ Updated app/.env.local with canister IDs"
 echo "   Registry: $REGISTRY_ID"
 echo "   Mock ckUSDC: $MOCK_CKUSDC_ID"
+echo "   Project canister: $PROJECT_ID"
+echo "   Asset canister: $FRONTEND_ID"
+
+# Seed mock ckUSDC for the active developer identity
+echo ""
+echo "💧 Seeding mock ckUSDC for local testing..."
+DEVELOPER_IDENTITY=$(dfx identity whoami)
+DEVELOPER_PRINCIPAL=$(dfx identity get-principal)
+MINT_AMOUNT=10000000000 # 10,000 ckUSDC (6 decimals)
+
+echo "   Minting $(printf "%d" $((MINT_AMOUNT / 1000000))) ckUSDC to $DEVELOPER_PRINCIPAL"
+dfx canister call mock_ckusdc mint \
+  "(record { owner = principal \"$DEVELOPER_PRINCIPAL\"; subaccount = null }, ${MINT_AMOUNT}:nat)" >/dev/null
+
+if [ -n "$PROJECT_ID" ]; then
+  echo "   Approving project canister ($PROJECT_ID) to spend ckUSDC"
+  dfx canister call mock_ckusdc icrc2_approve \
+    "(record {
+        from_subaccount = null;
+        spender = record { owner = principal \"$PROJECT_ID\"; subaccount = null };
+        amount = ${MINT_AMOUNT}:nat;
+        expected_allowance = null;
+        expires_at = null;
+        fee = null;
+        memo = null;
+        created_at_time = null
+      })" >/dev/null
+fi
+
+echo "   ✓ Minted ckUSDC and granted allowance for the default project canister"
+echo "   Use principal $DEVELOPER_PRINCIPAL when connecting via Plug/Bitfinity or CLI for ready-made funds."
+echo ""
+echo "🔐 Identity export for wallet import (identity: $DEVELOPER_IDENTITY)"
+dfx identity export "$DEVELOPER_IDENTITY"
 
 # Build frontend
 echo ""

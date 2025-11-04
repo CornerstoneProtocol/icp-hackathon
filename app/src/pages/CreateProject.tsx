@@ -92,7 +92,7 @@ const CreateProject = () => {
   const [minRaise, setMinRaise] = useState('');
   const [maxRaise, setMaxRaise] = useState('');
   const [fundingDurationDays, setFundingDurationDays] = useState('30');
-  const [selectedToken, setSelectedToken] = useState<'ckUSDC' | 'ckUSDT'>('ckUSDC');
+  const [selectedToken, setSelectedToken] = useState<'ckBTC' | 'ckUSDT'>('ckBTC');
   const [logoUrl, setLogoUrl] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
   const [website, setWebsite] = useState('');
@@ -160,8 +160,8 @@ const CreateProject = () => {
         return;
       }
 
-      const tokenCanisterId = selectedToken === 'ckUSDC' 
-        ? canistersConfig.ckusdc 
+      const tokenCanisterId = selectedToken === 'ckBTC' 
+        ? canistersConfig.ckbtc 
         : canistersConfig.ckusdt;
 
       if (!tokenCanisterId) {
@@ -458,13 +458,13 @@ const CreateProject = () => {
                   <Label htmlFor="tokenSelect">Investment Token</Label>
                   <Select 
                     value={selectedToken} 
-                    onValueChange={(v) => setSelectedToken(v as 'ckUSDC' | 'ckUSDT')}
+                    onValueChange={(v) => setSelectedToken(v as 'ckBTC' | 'ckUSDT')}
                   >
                     <SelectTrigger id="tokenSelect">
                       <SelectValue placeholder="Select token" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ckUSDC">ckUSDC</SelectItem>
+                      <SelectItem value="ckBTC">ckBTC</SelectItem>
                       <SelectItem value="ckUSDT">ckUSDT</SelectItem>
                     </SelectContent>
                   </Select>

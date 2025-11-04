@@ -9,6 +9,7 @@ anyhow.workspace = true
 candid.workspace = true
 ic-cdk.workspace = true
 ic-cdk-macros.workspace = true
+num-traits.workspace = true
 serde.workspace = true
 serde_bytes.workspace = true
 thiserror.workspace = true

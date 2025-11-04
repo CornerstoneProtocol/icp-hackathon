@@ -1,4 +1,4 @@
-# Cornerstone ICP Backend
+# Cornerstone ICP Backend (Legal Tech Hackathon)
 
 Rust canister implementation of the Cornerstone protocol for the Internet Computer. It ports the lifecycle rules from the Solidity version (fundraising, phased developer unlocks, reserve-funded interest, principal redemption, and per-share revenue) while exposing canister APIs suitable for hackathon submissions.
 

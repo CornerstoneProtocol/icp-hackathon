@@ -1,10 +1,10 @@
 // Token definitions - add more stablecoins here as needed
 export const SUPPORTED_TOKENS = {
   ckUSDC: {
-    name: 'ckUSDC',
-    symbol: 'ckUSDC',
+    name: 'ckBTC',
+    symbol: 'ckBTC',
     decimals: 6,
-    canisterId: 'xobql-2x777-77774-qaaja-cai', // Mainnet ckUSDC canister
+    canisterId: 'twxf4-i7777-77774-qaaqq-cai', // Mainnet ckUSDC canister
   },
   ckUSDT: {
     name: 'ckUSDT',
@@ -32,7 +32,7 @@ const fromEnv = () => {
   // For local development
   if (isLocal) {
     return {
-      registry: (import.meta.env.VITE_REGISTRY_CANISTER_ID as string | undefined) ?? 'x4hhs-wh777-77774-qaaka-cai',
+      registry: (import.meta.env.VITE_REGISTRY_CANISTER_ID as string | undefined) ?? 'rlklu-3x777-77774-qaa7a-cai',
       ckusdc: (import.meta.env.VITE_CKUSDC_CANISTER_ID as string | undefined) ?? undefined,
       ckusdt: (import.meta.env.VITE_CKUSDT_CANISTER_ID as string | undefined) ?? undefined,
       host,

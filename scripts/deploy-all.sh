@@ -16,15 +16,42 @@ if ! dfx ping 2>/dev/null; then
   exit 1
 fi
 
-# Create canisters first
+# Check if mock_ckusdc already exists
+MOCK_CKUSDC_EXISTS=false
+if dfx canister id mock_ckusdc 2>/dev/null; then
+  MOCK_CKUSDC_EXISTS=true
+  EXISTING_MOCK_ID=$(dfx canister id mock_ckusdc)
+  echo "✓ Found existing mock_ckusdc: $EXISTING_MOCK_ID (will preserve)"
+fi
+
+# Create canisters first (excluding mock_ckusdc if it exists)
 echo ""
 echo "🆔 Creating Canister IDs..."
-dfx canister create --all
+if [ "$MOCK_CKUSDC_EXISTS" = true ]; then
+  # Create only the canisters that don't exist
+  dfx canister create project 2>/dev/null || true
+  dfx canister create registry 2>/dev/null || true
+  dfx canister create frontend 2>/dev/null || true
+else
+  # Create all canisters including mock_ckusdc
+  dfx canister create --all
+fi
 
 # Build all canisters
 echo ""
 echo "🔨 Building All Canisters..."
 dfx build
+
+# Deploy mock_ckusdc only if it doesn't exist
+if [ "$MOCK_CKUSDC_EXISTS" = false ]; then
+  echo ""
+  echo "💰 Deploying Mock ckUSDC Canister..."
+  dfx deploy mock_ckusdc
+  echo "   ✓ New mock_ckusdc deployed"
+else
+  echo ""
+  echo "💰 Skipping mock_ckusdc deployment (using existing canister)"
+fi
 
 # Deploy registry
 echo ""
@@ -108,9 +135,18 @@ echo "✅ All canisters deployed successfully!"
 echo ""
 echo "📊 Deployed Canister IDs:"
 echo "   Registry: $REGISTRY_ID"
-echo "   Mock ckUSDC: $MOCK_CKUSDC_ID"
+echo "   Mock ckUSDC: $MOCK_CKUSDC_ID $([ "$MOCK_CKUSDC_EXISTS" = true ] && echo "(preserved)" || echo "(new)")"
 echo "   Frontend: $(dfx canister id frontend)"
 echo ""
+
+# Show mock_ckusdc balance if it was preserved
+if [ "$MOCK_CKUSDC_EXISTS" = true ]; then
+  echo "💰 Mock ckUSDC State:"
+  TOTAL_SUPPLY=$(dfx canister call mock_ckusdc icrc1_total_supply '()' 2>/dev/null | grep -oE '[0-9_]+' | tr -d '_' || echo "0")
+  echo "   Total Supply: $TOTAL_SUPPLY ($(echo "scale=2; $TOTAL_SUPPLY / 1000000" | bc) USDC)"
+  echo ""
+fi
+
 echo "🎉 Access your application at:"
 FRONTEND_ID=$(dfx canister id frontend)
 echo "   http://${FRONTEND_ID}.localhost:4943/"

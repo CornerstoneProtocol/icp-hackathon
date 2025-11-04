@@ -1,5 +1,6 @@
 #!/bin/bash
 # Clean deployment script - removes old state and redeploys everything
+# BUT preserves mock_ckusdc canister to keep minted tokens
 
 set -e
 
@@ -7,7 +8,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/dfx-env.sh"
 
-echo "🧹 Clean Deployment for Cornerstone"
+echo "🧹 Clean Deployment for Cornerstone (preserving mock_ckusdc)"
 echo ""
 
 # Check if replica is running
@@ -17,17 +18,32 @@ if ! dfx ping 2>/dev/null; then
   exit 1
 fi
 
-# Stop all canisters
-echo "⏹️  Stopping canisters..."
-dfx canister stop --all 2>/dev/null || true
+# Save mock_ckusdc canister ID if it exists
+MOCK_CKUSDC_ID=""
+if dfx canister id mock_ckusdc 2>/dev/null; then
+  MOCK_CKUSDC_ID=$(dfx canister id mock_ckusdc)
+  echo "💾 Preserving mock_ckusdc canister: $MOCK_CKUSDC_ID"
+fi
 
-# Delete canisters (this will also remove from canister_ids.json)
-echo "🗑️  Deleting canisters..."
-dfx canister delete --all --yes 2>/dev/null || true
+# Stop all canisters except mock_ckusdc
+echo "⏹️  Stopping canisters (except mock_ckusdc)..."
+for canister in project registry frontend; do
+  dfx canister stop $canister 2>/dev/null || true
+done
 
-# Remove local build state
-echo "🧹 Cleaning local state..."
-rm -rf .dfx/local/canisters 2>/dev/null || true
+# Delete canisters except mock_ckusdc
+echo "🗑️  Deleting canisters (except mock_ckusdc)..."
+for canister in project registry frontend; do
+  dfx canister delete $canister --yes 2>/dev/null || true
+done
+
+# Clean local build state but preserve mock_ckusdc
+echo "🧹 Cleaning local state (preserving mock_ckusdc)..."
+if [ -d ".dfx/local/canisters" ]; then
+  for canister in project registry frontend; do
+    rm -rf ".dfx/local/canisters/$canister" 2>/dev/null || true
+  done
+fi
 
 echo ""
 echo "✅ Cleanup complete! Now running deployment..."

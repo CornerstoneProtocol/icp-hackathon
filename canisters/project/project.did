@@ -66,6 +66,9 @@ type ProjectState = record {
 service : (InitArgs) -> {
   get_state : () -> (ProjectState) query;
   get_owner : () -> (principal) query;
+  get_ckbtc_ledger : () -> (text) query;
+  get_canister_ckbtc_balance : () -> (variant { Ok : nat; Err : text }) query;
+  get_caller : () -> (principal) query;
   claimable_interest : (principal) -> (nat) query;
   claimable_revenue : (principal) -> (nat) query;
   deposit : (nat) -> (variant { Ok : null; Err : text });

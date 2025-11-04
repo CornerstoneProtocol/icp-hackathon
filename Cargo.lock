@@ -1200,6 +1200,7 @@ dependencies = [
  "cornerstone-core",
  "ic-cdk",
  "ic-cdk-macros",
+ "num-traits",
  "serde",
  "serde_bytes",
  "thiserror 1.0.69",

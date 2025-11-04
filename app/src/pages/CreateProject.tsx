@@ -178,11 +178,11 @@ const CreateProject = () => {
       }
 
       // Check if wallet is connected
-      if (!connected) {
-        toast.error('Please connect your wallet first');
-        setIsPublishing(false);
-        return;
-      }
+      // if (!connected) {
+      //   toast.error('Please connect your wallet first');
+      //   setIsPublishing(false);
+      //   return;
+      // }
 
       // Calculate deadline (Unix timestamp in nanoseconds for ICP)
       const now = Math.floor(Date.now() / 1000);
@@ -355,17 +355,6 @@ const CreateProject = () => {
               <p className="text-muted-foreground">Build and fund your next big idea</p>
             </div>
             <div className="flex items-center gap-3">
-              <Button
-                variant={connected ? 'secondary' : 'default'}
-                size="sm"
-                className="gap-2"
-                onClick={connectWallet}
-              >
-                <Wallet className="w-4 h-4" />
-                {connected && account 
-                  ? `${account.slice(0, 8)}...${account.slice(-6)}` 
-                  : 'Connect Wallet'}
-              </Button>
               <Button variant="outline" onClick={() => window.history.back()}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Cancel
@@ -681,7 +670,7 @@ const CreateProject = () => {
                   <Button 
                     className="flex-1" 
                     onClick={handlePublish} 
-                    disabled={isPublishing || !connected}
+                    disabled={isPublishing}
                   >
                     {isPublishing ? 'Registering...' : 'Register Project'}
                   </Button>

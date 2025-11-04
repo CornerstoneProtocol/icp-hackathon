@@ -17,7 +17,7 @@ export type ContractsConfig = {
 // Configuration (favor values from canistersConfig, fall back to defaults)
 const HOST = canistersConfig.host || 'https://ic0.app';
 const PROJECT_CANISTER_ID = (import.meta.env.VITE_PROJECT_CANISTER_ID as string | undefined) || 'xjaw7-xp777-77774-qaajq-cai';
-const REGISTRY_CANISTER_ID = canistersConfig.registry || 'x4hhs-wh777-77774-qaaka-cai';
+const REGISTRY_CANISTER_ID = canistersConfig.registry || '2ozfp-2h777-77774-qabca-cai';
 
 // ============================================================================
 // Authentication & Agent Management

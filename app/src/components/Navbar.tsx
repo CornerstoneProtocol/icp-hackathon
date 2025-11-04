@@ -11,6 +11,7 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [addr, setAddr] = useState(null);
   const location = useLocation();
   const { account, isConnecting, connect, disconnect, formatAddress } = useWallet();
 
@@ -20,6 +21,7 @@ const Navbar = () => {
       const addr = await getAccount();
       if (addr) {
         setIsConnected(true);
+        setAddr(addr);
         toast.success('Wallet connected');
       }
     } catch (e: any) {
@@ -141,7 +143,7 @@ const Navbar = () => {
                 className="minecraft-button h-10 px-4 py-2 text-white bg-[#8B7355] hover:bg-[#654321] border-4 border-[#654321] font-bold"
               >
                 <Wallet className="w-4 h-4 mr-2" />
-                {formatAddress}
+                {addr}
               </Button>
               <Button
                 variant="ghost"

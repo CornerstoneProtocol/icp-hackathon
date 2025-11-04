@@ -80,18 +80,18 @@ fi
 echo ""
 echo "📝 Updating Frontend Environment..."
 REGISTRY_ID=$(dfx canister id registry)
-MOCK_CKUSDC_ID=$(dfx canister id mock_ckusdc 2>/dev/null || echo "")
+MOCK_CKBTC_ID=$(dfx canister id mock_ckusdc 2>/dev/null || echo "")
 
 cat > app/.env.local <<ENV_FILE
 VITE_IC_HOST=http://127.0.0.1:4943
 VITE_REGISTRY_CANISTER_ID=${REGISTRY_ID}
-VITE_CKUSDC_CANISTER_ID=${MOCK_CKUSDC_ID}
+VITE_CKBTC_CANISTER_ID=${MOCK_CKBTC_ID}
 VITE_CKUSDT_CANISTER_ID=<ckUSDT-canister-id>
 ENV_FILE
 
 echo "   ✓ Updated app/.env.local with canister IDs"
 echo "   Registry: $REGISTRY_ID"
-echo "   Mock ckUSDC: $MOCK_CKUSDC_ID"
+echo "   Mock ckUSDC: $MOCK_CKBTC_ID"
 
 # Build frontend
 echo ""
@@ -108,7 +108,7 @@ echo "✅ All canisters deployed successfully!"
 echo ""
 echo "📊 Deployed Canister IDs:"
 echo "   Registry: $REGISTRY_ID"
-echo "   Mock ckUSDC: $MOCK_CKUSDC_ID"
+echo "   Mock ckUSDC: $MOCK_CKBTC_ID"
 echo "   Frontend: $(dfx canister id frontend)"
 echo ""
 echo "🎉 Access your application at:"

@@ -32,7 +32,7 @@ const fromEnv = () => {
   // For local development
   if (isLocal) {
     return {
-      registry: (import.meta.env.VITE_REGISTRY_CANISTER_ID as string | undefined) ?? 'x4hhs-wh777-77774-qaaka-cai',
+      registry: (import.meta.env.VITE_REGISTRY_CANISTER_ID as string | undefined) ?? '3ewhv-yx777-77774-qabfa-cai',
       ckbtc: (import.meta.env.VITE_CKBTC_CANISTER_ID as string | undefined) ?? undefined,
       ckusdt: (import.meta.env.VITE_CKUSDT_CANISTER_ID as string | undefined) ?? undefined,
       host,

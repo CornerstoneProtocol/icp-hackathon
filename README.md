@@ -1,4 +1,4 @@
-# Cornerstone ICP Backend
+# Cornerstone ICP - LegalHacks Hackathon
 
 Rust canister implementation of the Cornerstone protocol for the Internet Computer. It ports the lifecycle rules from the Solidity version (fundraising, phased developer unlocks, reserve-funded interest, principal redemption, and per-share revenue) while exposing canister APIs suitable for hackathon submissions.
 
@@ -97,11 +97,3 @@ Rust canister implementation of the Cornerstone protocol for the Internet Comput
    ```
    Generated Wasm binaries live under `target/wasm32-unknown-unknown/release/` and can be installed with `dfx canister install` or via the management canister.
 
-## Next Steps & Hackathon Notes
-
-- Wire the registry to automatically install project canisters using the management canister APIs once Wasm artifacts are uploaded.
-- Integrate Chain Fusion ledgers (ckUSDC/ckBTC) by replacing the placeholder accounting transfers with real ledger calls.
-- Layer in tamper-proof document storage (e.g., doc notarization canister) and identity integration for the legal-tech track.
-- Prepare demo scripts plus a video walkthrough highlighting architecture, tests, and mainnet deployment steps.
-
-Refer to the Solidity contracts under `cornerstone-prototype/contracts` for behavioural parity; each major flow now has a Rust equivalent covered by tests.

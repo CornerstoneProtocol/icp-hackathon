@@ -40,8 +40,37 @@ function log(...args: unknown[]) {
   console.info(LOG_PREFIX, ...args);
 }
 
-// Asset canister ID from environment
-const ASSET_CANISTER_ID = import.meta.env.VITE_ASSET_CANISTER_ID as string | undefined;
+function deriveAssetCanisterId(): string | undefined {
+  const legacyEnv = import.meta.env.VITE_ASSET_CANISTER_ID as string | undefined;
+  if (legacyEnv) {
+    return legacyEnv;
+  }
+
+  const frontendEnv = import.meta.env.VITE_FRONTEND_CANISTER_ID as string | undefined;
+  if (frontendEnv) {
+    return frontendEnv;
+  }
+
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const hostname = window.location.hostname;
+  const suffixes = ['.ic0.app', '.raw.ic0.app', '.icp0.io', '.raw.icp0.io', '.localhost'];
+
+  for (const suffix of suffixes) {
+    if (hostname.endsWith(suffix)) {
+      const candidate = hostname.slice(0, -suffix.length);
+      if (candidate) {
+        return candidate;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+const ASSET_CANISTER_ID = deriveAssetCanisterId();
 
 let agentPromise: Promise<HttpAgent> | null = null;
 let assetActorPromise: Promise<AssetCanister> | null = null;
@@ -67,7 +96,11 @@ async function getAgent(): Promise<HttpAgent> {
       });
       
       // Fetch root key for certificate validation on local replica
-      if (import.meta.env.MODE === 'development' || host.includes('localhost')) {
+      if (
+        import.meta.env.MODE === 'development' ||
+        host.includes('localhost') ||
+        host.includes('127.0.0.1')
+      ) {
         try {
           await agent.fetchRootKey();
           log('Fetched root key for local development');
@@ -91,7 +124,7 @@ async function getAssetActor(): Promise<AssetCanister> {
     log('Creating asset canister actor...');
     assetActorPromise = (async () => {
       if (!ASSET_CANISTER_ID) {
-        throw new Error('Asset canister ID missing. Set VITE_ASSET_CANISTER_ID in your environment.');
+        throw new Error('Asset canister ID missing. Unable to determine frontend canister ID.');
       }
 
       const agent = await getAgent();
@@ -211,7 +244,7 @@ export async function icpUpload(files: File[]): Promise<Uploaded> {
       }
       
       if (/canister.*not found/i.test(msg)) {
-        throw new Error(`Asset canister not found. Please check VITE_ASSET_CANISTER_ID is correct.`);
+        throw new Error(`Asset canister not found. Please ensure the frontend canister ID is correct.`);
       }
       
       throw new Error(`Failed to upload ${file.name}: ${msg}`);

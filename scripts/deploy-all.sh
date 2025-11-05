@@ -81,12 +81,14 @@ echo ""
 echo "📝 Updating Frontend Environment..."
 REGISTRY_ID=$(dfx canister id registry)
 MOCK_CKBTC_ID=$(dfx canister id mock_ckusdc 2>/dev/null || echo "")
+FRONTEND_ID=$(dfx canister id frontend)
 
 cat > app/.env.local <<ENV_FILE
 VITE_IC_HOST=http://127.0.0.1:4943
 VITE_REGISTRY_CANISTER_ID=${REGISTRY_ID}
 VITE_CKBTC_CANISTER_ID=${MOCK_CKBTC_ID}
 VITE_CKUSDT_CANISTER_ID=<ckUSDT-canister-id>
+VITE_ASSET_CANISTER_ID=${FRONTEND_ID}
 ENV_FILE
 
 echo "   ✓ Updated app/.env.local with canister IDs"
@@ -103,6 +105,18 @@ echo ""
 echo "🌐 Deploying Frontend Canister..."
 dfx deploy frontend
 
+# Grant permission to anonymous identity
+echo ""
+echo "🔐 Granting Commit Permission to Anonymous Identity..."
+ANON_PRINCIPAL="2vxsx-fae"
+dfx canister call frontend grant_permission "(record { to_principal = principal \"${ANON_PRINCIPAL}\"; permission = variant { Commit } })"
+
+if [ $? -eq 0 ]; then
+    echo "   ✓ Permission granted successfully!"
+else
+    echo "   ⚠ Warning: Failed to grant permission (this may be expected if the method doesn't exist)"
+fi
+
 echo ""
 echo "✅ All canisters deployed successfully!"
 echo ""
@@ -112,5 +126,4 @@ echo "   Mock ckUSDC: $MOCK_CKBTC_ID"
 echo "   Frontend: $(dfx canister id frontend)"
 echo ""
 echo "🎉 Access your application at:"
-FRONTEND_ID=$(dfx canister id frontend)
 echo "   http://${FRONTEND_ID}.localhost:4943/"
